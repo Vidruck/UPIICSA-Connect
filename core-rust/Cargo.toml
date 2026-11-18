@@ -1,0 +1,11 @@
+[package]
+name = "upiicsa_core_rs"
+version = "0.1.0"
+edition = "2021"
+description = "Core nativo de procesamiento de senales y multiplexado de transporte para UPIICSA-Connect (Todos los derechos reservados)."
+
+[lib]
+name = "upiicsa_core_rs"
+crate-type = ["cdylib", "rlib", "staticlib"]
+
+[dependencies]

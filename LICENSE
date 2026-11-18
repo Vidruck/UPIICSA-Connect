@@ -1,0 +1,20 @@
+UPIICSA-Connect
+Copyright (c) 2026 Equipo Desarrollador de UPIICSA-Connect.
+Todos los derechos reservados.
+
+AVISO DE PROPIEDAD INTELECTUAL Y RESERVA DE DERECHOS:
+
+El presente proyecto, incluyendo su código fuente, arquitectura, documentación,
+diseño de interfaz gráfica, bibliotecas nativas en Rust, módulos en Kotlin
+Multiplatform, recursos visuales y cualquier derivado, NO cuenta con ninguna
+licencia de código abierto ni de distribución pública.
+
+Se reservan todos los derechos exclusivos de uso, reproducción, modificación,
+distribución y explotación comercial o académica al equipo desarrollador de
+UPIICSA-Connect (Unidad Profesional Interdisciplinaria de Ingeniería y Ciencias
+Sociales y Administrativas - IPN).
+
+Queda estrictamente prohibida la copia total o parcial, redistribución,
+sublicenciamiento, ingeniería inversa o cambio de los términos de este aviso
+sin la autorización previa, expresa y por escrito del líder de proyecto y del
+equipo desarrollador.

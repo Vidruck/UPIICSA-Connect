@@ -1,0 +1,53 @@
+# UPIICSA-Connect
+
+Plataforma multiplataforma de convergencia y continuidad entre equipos de escritorio (**Windows** y **GNU/Linux**) y dispositivos **Android** (`minSdk 26` / `targetSdk 34`), diseñada bajo la identidad visual institucional de la **UPIICSA - IPN** con soporte adaptable para **Modo Claro (Light)** y **Modo Oscuro (Dark)**.
+
+> **Aviso Legal:** Todos los derechos reservados al equipo desarrollador. Consulte [`LICENSE`](LICENSE).  
+> **Reglas de Contribución:** Consulte [`CONTRIBUTING.md`](CONTRIBUTING.md) antes de realizar cambios o commits.
+
+---
+
+## Capacidades Principales
+
+1. **Panel Bidireccional de Conexión y Opciones:**
+   - Conexión iniciada desde el **Ordenador hacia el Móvil** y desde el **Móvil hacia el Ordenador**.
+   - Prioridad de transporte determinista:
+     1. **Cable USB** (primera opción: mayor ancho de banda y menor latencia vía ADB/AOAv2).
+     2. **Wi-Fi LAN / Bluetooth** (segunda opción inalámbrica).
+2. **Resolución Remota de Notificaciones:**
+   - Espejo de notificaciones del teléfono hacia el escritorio y **resolución directa desde el ordenador** (respuesta rápida en línea vía `RemoteInput`, marcado como leído y descarte) para evitar distracciones y pérdida de flujo de trabajo.
+3. **Portapapeles Compartido Bidireccional:**
+   - Sincronización inmediata de texto entre PC y Android.
+4. **Monitor Secundario:**
+   - Permite utilizar un dispositivo Android (por ejemplo, una tablet) como pantalla extendida o secundaria de una PC Windows o GNU/Linux.
+5. **Cámara y Micrófono Remotos para Videollamadas:**
+   - Convierte la cámara y micrófono del teléfono en webcam y entrada de audio virtual del portátil por cable USB o red inalámbrica.
+6. **Music Mode (Audio Offload hacia la PC):**
+   - Transmite el flujo de audio del teléfono directamente a la tarjeta de sonido de la PC para aprovechar mejores altavoces o amplificación sin consumir RAM/CPU del ordenador en navegadores o reproductores pesados.
+
+---
+
+## Stack Tecnológico y Arquitectura
+
+- **Core de Señales y Transporte (`core-rust/`):** Implementado en **Rust** (`std`) para procesamiento DSP de baja latencia (*Music Mode*, micrófono, video), empaquetado binario con verificación CRC32 y multiplexing de transporte con prioridad `USB -> Wi-Fi / Bluetooth`, expuesto mediante interfaz FFI (`extern "C"`) para Kotlin Multiplatform.
+- **Módulo Compartido (`shared/`):** **Kotlin Multiplatform** con modelos de dominio, contratos hacia el core Rust y tema oficial **UPIICSA - IPN** (Verde `#006341`, Oro `#F2A900`, Guinda `#6C1D45`) adaptable a Light/Dark.
+- **Escritorio Windows y GNU/Linux (`desktopApp/`):** Arquitectura **Ports & Adapters (Hexagonal)** con **adaptadores estrictamente segregados por S.O. y por servicio** (evitando Clases Dios).
+- **Móvil Android (`androidApp/`):** Arquitectura **MVVM** (`Model` -> `ViewModel` con `StateFlow` -> `View` en Compose).
+
+---
+
+## Documentación Técnica y Seguimiento
+
+- [`docs/PLAN_DE_FASES.md`](docs/PLAN_DE_FASES.md) — Plan maestro por fases y grado real de cumplimiento actual.
+- [`docs/ARQUITECTURA_Y_CAPAS.md`](docs/ARQUITECTURA_Y_CAPAS.md) — Diagramas y especificación de capas, infraestructura y puertos/adaptadores.
+- [`docs/CONTRATOS_DUMMY.md`](docs/CONTRATOS_DUMMY.md) — Inventario explícito de contratos dummy y datos hardcodeados para pruebas.
+
+---
+
+## Verificación del Core en Rust
+
+El núcleo de procesamiento de señales y transporte (`core-rust`) no depende de bibliotecas externas de red y puede compilarse y probarse directamente con Cargo:
+
+```bash
+cargo test --manifest-path core-rust/Cargo.toml
+```
