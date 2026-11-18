@@ -42,7 +42,20 @@ Todo código fuente agregado al proyecto (`Kotlin` y `Rust`) debe respetar estri
 
 ---
 
-## 3. Flujo de Trabajo y Verificación Previa al Commit
+## 3. Flujo de Ramas y Pull Requests
+
+El repositorio se organiza bajo **dos ramas principales**:
+
+1. **`main` (Original / Producción):** Rama principal estable. **Ningún agente ni colaborador debe trabajar directamente sobre `main`.**
+2. **`dev` (De Trabajo / Integración):** Rama base de desarrollo activo. **Todo agente debe trabajar sobre `dev`.**
+
+### Regla de Ramas Derivadas y Pull Requests
+* Si el agente detecta un flujo alto de cambios, múltiples tareas paralelas o riesgo de conflictos sobre `dev`, **debe crear una rama de trabajo derivada a partir de `dev`** (por ejemplo: `feat/nombre-modulo` o `fix/descripcion-breve`).
+* Una vez concluidos y verificados sus cambios, el agente debe abrir un **Pull Request (PR) hacia `dev`** para análisis y aprobación del equipo desarrollador.
+
+---
+
+## 4. Flujo de Trabajo y Verificación Previa al Commit
 
 Antes de confirmar cambios en el repositorio:
 
