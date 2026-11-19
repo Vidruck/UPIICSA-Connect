@@ -42,6 +42,7 @@ Plataforma multiplataforma de convergencia y continuidad entre equipos de escrit
 - [`docs/ARQUITECTURA_Y_CAPAS.md`](docs/ARQUITECTURA_Y_CAPAS.md) — Diagramas y especificación de capas, infraestructura y puertos/adaptadores.
 - [`docs/CONTRATOS_DUMMY.md`](docs/CONTRATOS_DUMMY.md) — Inventario explícito de contratos dummy y datos hardcodeados para pruebas.
 - [`docs/STACK_E_INSTALACION_WINDOWS.md`](docs/STACK_E_INSTALACION_WINDOWS.md) — Stack técnico requerido, manual de instalación en Windows 10/11 y prevención de errores.
+- [`docs/BITACORA_IA.md`](docs/BITACORA_IA.md) — Bitácora obligatoria de auditoría para toda intervención de Inteligencia Artificial.
 
 ---
 

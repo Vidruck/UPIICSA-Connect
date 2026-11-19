@@ -21,6 +21,10 @@ Toda Inteligencia Artificial que colabore en este repositorio **DEBE** acatar si
    - **ESTÁ PROHIBIDO realizar commits en idiomas ajenos al ESPAÑOL**. Tanto el título como el cuerpo de cada mensaje de commit deben redactarse en español claro y técnico (por ejemplo: `feat(desktop): implementar adaptador de notificaciones para GNU/Linux`).
 5. **PROHIBICIÓN DE ALTERAR LA LICENCIA:**
    - **ESTÁ PROHIBIDO modificar, suavizar, reemplazar o eliminar los términos del archivo `LICENSE`**. El proyecto no posee licencia abierta; todos los derechos están reservados al equipo desarrollador.
+6. **REGISTRO OBLIGATORIO EN LA BITÁCORA DE IA (`docs/BITACORA_IA.md`):**
+   - Toda Inteligencia Artificial que intervenga en el proyecto **DEBE registrar su intervención sin excepción** en la tabla de [`docs/BITACORA_IA.md`](docs/BITACORA_IA.md), indicando su autoidentificación, una breve descripción del prompt del usuario, los cambios efectuados y las clases creadas o funciones modificadas.
+   - Si se emplean subagentes o un esquema de modelo planificador/ejecutor, **el modelo principal asume la responsabilidad** de completar el registro correspondiente en la bitácora.
+   - Este registro es únicamente de auditoría técnica y no exime del cumplimiento de la cláusula 1 (prohibición de autoría en commits o licencia).
 
 ---
 
@@ -65,4 +69,4 @@ Antes de confirmar cambios en el repositorio:
    ```
 2. Verificar que no existan referencias de acoplamiento cruzado entre `adapters/os/linux` y `adapters/os/windows` ni acceso directo de las vistas (`ui/`) a los adaptadores del sistema operativo.
 3. Confirmar que el mensaje de commit está redactado íntegramente en **ESPAÑOL**, sin trailers de autoría automática de IA.
-4. Confirmar que `docs/PLAN_DE_FASES.md` y `docs/CONTRATOS_DUMMY.md` reflejan el estado real del código.
+4. Confirmar que `docs/PLAN_DE_FASES.md`, `docs/CONTRATOS_DUMMY.md` y [`docs/BITACORA_IA.md`](docs/BITACORA_IA.md) reflejan el estado real del código y la intervención ejecutada.

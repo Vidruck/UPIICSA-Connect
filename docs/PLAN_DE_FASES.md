@@ -29,6 +29,7 @@ Este documento controla el avance real del proyecto **UPIICSA-Connect**, detalla
 - [x] Definición de arquitectura **Ports & Adapters** sin Clases Dios en `desktopApp` (separación de 5 adaptadores independientes para GNU/Linux y 5 para Windows).
 - [x] Definición de arquitectura **MVVM** estricta en `androidApp` (`model/`, `viewmodel/`, `ui/`).
 - [x] Documentación de capas e infraestructura (`docs/ARQUITECTURA_Y_CAPAS.md`) y catálogo de contratos dummy (`docs/CONTRATOS_DUMMY.md`).
+- [x] Creación de bitácora obligatoria de auditoría para intervenciones de IA (`docs/BITACORA_IA.md`).
 
 ### Fase 2: Core Nativo Rust (Señales y Conectividad) — **65% Completada**
 - [x] Crate `core-rust` sin dependencias externas (`std`) para compilación determinista y segura.
