@@ -15,21 +15,45 @@ enum class ContentOrigin(val wireId: Int) {
  * Mensajes de aplicación tipados que viajan dentro de la carga útil de una trama, equivalentes a `ChannelMessage` en Rust.
  */
 sealed class ChannelMessage {
+    /**
+     * Respuesta rápida en línea a una notificación.
+     */
     data class NotificationReply(val notificationId: String, val replyText: String) : ChannelMessage()
+    /**
+     * Orden de marcar una notificación como leída.
+     */
     data class NotificationMarkRead(val notificationId: String) : ChannelMessage()
+    /**
+     * Orden de descartar una notificación.
+     */
     data class NotificationDismiss(val notificationId: String) : ChannelMessage()
+    /**
+     * Texto del portapapeles compartido con su origen.
+     */
     data class ClipboardText(val origin: ContentOrigin, val text: String) : ChannelMessage()
+    /**
+     * Orden de activar o detener cámara y micrófono remotos.
+     */
     data class CameraMicCommand(
         val cameraEnabled: Boolean,
         val microphoneEnabled: Boolean,
         val useBackCamera: Boolean
     ) : ChannelMessage()
+    /**
+     * Orden de Music Mode con ganancia en milésimas.
+     */
     data class MusicModeCommand(val enabled: Boolean, val gainMilli: Int) : ChannelMessage()
+    /**
+     * Saludo inicial de enlace con dirección, nombre del equipo y PIN.
+     */
     data class HandshakeHello(
         val direction: ConnectionDirection,
         val deviceName: String,
         val pairingPin: Int
     ) : ChannelMessage()
+    /**
+     * Latido periódico con marca de tiempo para medir latencia.
+     */
     data class Heartbeat(val timestampMs: Long) : ChannelMessage()
 
     /**

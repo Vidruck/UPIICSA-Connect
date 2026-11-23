@@ -1,5 +1,6 @@
 package mx.ipn.upiicsa.connect.desktop.adapters.os
 
+import mx.ipn.upiicsa.connect.desktop.adapters.nativecore.NativeCoreLoader
 import mx.ipn.upiicsa.connect.desktop.adapters.os.linux.LinuxClipboardAdapter
 import mx.ipn.upiicsa.connect.desktop.adapters.os.linux.LinuxFreedesktopNotificationAdapter
 import mx.ipn.upiicsa.connect.desktop.adapters.os.linux.LinuxPipeWireAudioSinkAdapter
@@ -10,6 +11,7 @@ import mx.ipn.upiicsa.connect.desktop.adapters.os.windows.WindowsIddCxDisplayAda
 import mx.ipn.upiicsa.connect.desktop.adapters.os.windows.WindowsWasapiAudioSinkAdapter
 import mx.ipn.upiicsa.connect.desktop.adapters.os.windows.WindowsWin32ClipboardAdapter
 import mx.ipn.upiicsa.connect.desktop.adapters.os.windows.WindowsWinRtNotificationAdapter
+import mx.ipn.upiicsa.connect.desktop.adapters.simulation.DummyPhoneEventStreamAdapter
 import mx.ipn.upiicsa.connect.desktop.adapters.transport.MultiChannelTransportAdapter
 import mx.ipn.upiicsa.connect.desktop.application.DesktopConnectionService
 import mx.ipn.upiicsa.connect.desktop.domain.DesktopSessionAggregate
@@ -19,7 +21,7 @@ import mx.ipn.upiicsa.connect.desktop.ports.outbound.OsNotificationOutboundPort
 import mx.ipn.upiicsa.connect.desktop.ports.outbound.OsVirtualCameraMicOutboundPort
 import mx.ipn.upiicsa.connect.desktop.ports.outbound.OsVirtualDisplayOutboundPort
 import mx.ipn.upiicsa.connect.shared.model.DesktopOsPlatform
-import mx.ipn.upiicsa.connect.shared.protocol.DummyRustCoreBridge
+import mx.ipn.upiicsa.connect.shared.protocol.RustCoreBridgeContract
 
 /**
  * Agrupa el conjunto de puertos de salida instanciados para el sistema operativo anfitrión sin mezclar implementaciones.
@@ -77,20 +79,22 @@ object OsAdapterFactory {
     /**
      * Ensambla el servicio de aplicación hexagonal completo listo para conectarse al panel gráfico de escritorio.
      */
-    fun createDesktopService(platform: DesktopOsPlatform = detectHostPlatform()): DesktopConnectionService {
+    fun createDesktopService(
+        platform: DesktopOsPlatform = detectHostPlatform(),
+        rustCore: RustCoreBridgeContract = NativeCoreLoader.loadOrDummy()
+    ): DesktopConnectionService {
         val bundle = createPortBundle(platform)
-        // [DECISIÓN TÉCNICA]: Se inyecta DummyRustCoreBridge mientras se compila el binding JNI de core-rust para desktop JVM.
-        val rustCore = DummyRustCoreBridge()
-        val transportAdapter = MultiChannelTransportAdapter(rustCore)
         return DesktopConnectionService(
             aggregate = DesktopSessionAggregate(),
             rustCore = rustCore,
-            transportPort = transportAdapter,
+            transportPort = MultiChannelTransportAdapter(rustCore),
             notificationPort = bundle.notificationPort,
             clipboardPort = bundle.clipboardPort,
             virtualDisplayPort = bundle.virtualDisplayPort,
             virtualCameraMicPort = bundle.virtualCameraMicPort,
-            audioSinkPort = bundle.audioSinkPort
+            audioSinkPort = bundle.audioSinkPort,
+            // [DECISIÓN TÉCNICA]: Mientras no exista el socket real del teléfono (Fase 3) los eventos provienen del simulador.
+            phoneEventPort = DummyPhoneEventStreamAdapter()
         )
     }
 }

@@ -1,6 +1,8 @@
 package mx.ipn.upiicsa.connect.desktop.ports.inbound
 
+import kotlinx.coroutines.flow.StateFlow
 import mx.ipn.upiicsa.connect.desktop.domain.DesktopSessionState
+import mx.ipn.upiicsa.connect.desktop.domain.PhoneEvent
 import mx.ipn.upiicsa.connect.shared.model.ConnectionDirection
 import mx.ipn.upiicsa.connect.shared.model.NotificationResolutionAction
 import mx.ipn.upiicsa.connect.shared.model.PhoneNotificationItem
@@ -47,6 +49,11 @@ interface NotificationResolutionUseCase {
      * Resuelve una notificación del teléfono directamente desde el ordenador sin cambiar de dispositivo.
      */
     suspend fun resolveNotification(action: NotificationResolutionAction): DesktopSessionState
+
+    /**
+     * Activa o pausa el espejo automático de notificaciones del teléfono.
+     */
+    suspend fun setNotificationMirroring(enabled: Boolean): DesktopSessionState
 }
 
 /**
@@ -63,6 +70,11 @@ interface ClipboardSyncUseCase {
      * Lee el contenido actual del portapapeles nativo del sistema operativo de escritorio.
      */
     suspend fun pullOsClipboardText(): String
+
+    /**
+     * Activa o pausa la sincronización automática del portapapeles.
+     */
+    suspend fun setClipboardSync(enabled: Boolean): DesktopSessionState
 }
 
 /**
@@ -105,3 +117,49 @@ interface MusicModeUseCase {
         trackTitle: String
     ): DesktopSessionState
 }
+
+/**
+ * Información del núcleo nativo en uso (versión y si está respaldado por el binario Rust o por la simulación Kotlin).
+ */
+data class CoreRuntimeInfo(
+    val version: String,
+    val nativeBacked: Boolean
+)
+
+/**
+ * Puerto de entrada para observar la sesión y procesar los eventos entrantes del teléfono conectado.
+ */
+interface SessionObservationUseCase {
+
+    /**
+     * Flujo observable del estado de la sesión para la capa de presentación.
+     */
+    val sessionState: StateFlow<DesktopSessionState>
+
+    /**
+     * Describe el núcleo nativo activo.
+     */
+    fun coreRuntimeInfo(): CoreRuntimeInfo
+
+    /**
+     * Aplica un evento recibido del teléfono a la sesión y a los adaptadores del sistema operativo.
+     */
+    suspend fun processPhoneEvent(event: PhoneEvent): DesktopSessionState
+
+    /**
+     * Escucha de forma continua los eventos del teléfono mientras haya una sesión activa (suspende indefinidamente).
+     */
+    suspend fun runPhoneEventLoop()
+}
+
+/**
+ * Fachada que agrupa todos los puertos de entrada consumidos por el adaptador conductor (interfaz gráfica).
+ */
+interface DesktopUseCases :
+    ConnectDeviceUseCase,
+    NotificationResolutionUseCase,
+    ClipboardSyncUseCase,
+    SecondaryMonitorUseCase,
+    VirtualCameraMicUseCase,
+    MusicModeUseCase,
+    SessionObservationUseCase

@@ -1,11 +1,14 @@
 package mx.ipn.upiicsa.connect.desktop.ports.outbound
 
+import kotlinx.coroutines.flow.Flow
+import mx.ipn.upiicsa.connect.desktop.domain.PhoneEvent
 import mx.ipn.upiicsa.connect.shared.model.ConnectionDirection
 import mx.ipn.upiicsa.connect.shared.model.NotificationResolutionAction
 import mx.ipn.upiicsa.connect.shared.model.PhoneNotificationItem
 import mx.ipn.upiicsa.connect.shared.model.RemoteDeviceDescriptor
 import mx.ipn.upiicsa.connect.shared.model.SecondaryDisplayConfig
 import mx.ipn.upiicsa.connect.shared.model.TransportType
+import mx.ipn.upiicsa.connect.shared.protocol.ServiceChannel
 
 /**
  * Puerto de salida de transporte físico que oculta los detalles de USB, Wi-Fi LAN y Bluetooth RFCOMM.
@@ -34,7 +37,7 @@ interface DeviceTransportOutboundPort {
     /**
      * Envía una trama etiquetada por el canal lógico indicado hacia Android.
      */
-    suspend fun sendChannelPayload(channelId: Int, payload: ByteArray): Boolean
+    suspend fun sendChannelPayload(channel: ServiceChannel, payload: ByteArray): Boolean
 }
 
 /**
@@ -130,4 +133,15 @@ interface OsAudioSinkOutboundPort {
      * Cierra el sumidero de audio al desactivar Music Mode.
      */
     suspend fun closeMusicModeSink()
+}
+
+/**
+ * Puerto de salida que entrega como flujo los eventos producidos por el teléfono conectado (notificaciones, audio, video, latidos).
+ */
+interface PhoneEventStreamOutboundPort {
+
+    /**
+     * Flujo frío de eventos del dispositivo indicado sobre el medio activo; se cancela al cerrar la sesión.
+     */
+    fun events(device: RemoteDeviceDescriptor, transport: TransportType): Flow<PhoneEvent>
 }

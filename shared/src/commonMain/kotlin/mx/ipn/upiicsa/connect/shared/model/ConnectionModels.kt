@@ -176,3 +176,12 @@ data class MediaTelemetry(
     val cameraFramesReceived: Long = 0,
     val displayFramesSent: Long = 0
 )
+
+/**
+ * Elemento del historial del portapapeles compartido indicando su origen (ordenador o teléfono).
+ */
+data class ClipboardHistoryEntry(
+    val text: String,
+    val fromMobile: Boolean,
+    val epochMillis: Long
+)

@@ -262,8 +262,8 @@ fun CameraPreviewPlaceholder(
                     size = Size(size.width * 0.4f, size.height * 0.5f)
                 )
             }
-            val corner = size.minDimension * 0.08f
-            val inset = size.minDimension * 0.06f
+            val corner = size.minDimension * 0.07f
+            val inset = size.minDimension * 0.035f
             val stroke = Stroke(width = size.minDimension * 0.012f, cap = StrokeCap.Round)
             val frameColor = Color.White.copy(alpha = if (cameraEnabled) 0.8f else 0.25f)
             for ((x, y) in listOf(0f to 0f, 1f to 0f, 0f to 1f, 1f to 1f)) {
@@ -291,7 +291,7 @@ fun CameraPreviewPlaceholder(
         Row(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(10.dp),
+                .padding(horizontal = 26.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -316,7 +316,7 @@ fun CameraPreviewPlaceholder(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
-                .padding(10.dp),
+                .padding(horizontal = 26.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

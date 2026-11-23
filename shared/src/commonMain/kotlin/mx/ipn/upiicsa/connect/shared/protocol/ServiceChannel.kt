@@ -43,7 +43,13 @@ enum class WireFrameError(val code: Int, val description: String) {
  * Resultado de validar una trama serializada: canal lógico si es válida o error tipado en caso contrario.
  */
 sealed class FrameValidation {
+    /**
+     * Trama íntegra perteneciente al canal indicado.
+     */
     data class Valid(val channel: ServiceChannel) : FrameValidation()
+    /**
+     * Trama rechazada con el error detectado.
+     */
     data class Invalid(val error: WireFrameError) : FrameValidation()
 
     companion object {
