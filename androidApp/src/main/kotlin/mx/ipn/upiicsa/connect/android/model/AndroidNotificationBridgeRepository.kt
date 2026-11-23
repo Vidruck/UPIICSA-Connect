@@ -1,5 +1,8 @@
 package mx.ipn.upiicsa.connect.android.model
 
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import mx.ipn.upiicsa.connect.shared.model.NotificationResolutionAction
 import mx.ipn.upiicsa.connect.shared.model.PhoneNotificationItem
 
@@ -70,5 +73,34 @@ class AndroidNotificationBridgeRepository {
         cachedNotifications.clear()
         cachedNotifications.addAll(updated)
         return cachedNotifications.toList()
+    }
+
+    /**
+     * Flujo de notificaciones nuevas capturadas en el teléfono mientras el puente está activo.
+     */
+    fun incomingNotifications(): Flow<PhoneNotificationItem> = flow {
+        // [DUMMY-PRUEBAS]: Notificaciones periódicas simuladas en lugar de onNotificationPosted de NotificationListenerService.
+        val catalog = listOf(
+            Triple("Telegram", "org.telegram.messenger", "Club de Robótica" to "Reunión hoy en el edificio de Ingeniería."),
+            Triple("Gmail", "com.google.android.gm", "Servicio Escolar UPIICSA" to "Tu constancia de estudios está lista."),
+            Triple("WhatsApp", "com.whatsapp", "Mamá" to "¿Llegas a comer o te guardo?")
+        )
+        var index = 0
+        while (true) {
+            delay(25_000)
+            val (app, pkg, content) = catalog[index % catalog.size]
+            val item = PhoneNotificationItem(
+                notificationId = "android-live-$index",
+                appName = app,
+                packageName = pkg,
+                senderTitle = content.first,
+                messageBody = content.second,
+                timestampLabel = "Ahora",
+                supportsInlineReply = app != "Gmail"
+            )
+            cachedNotifications.add(0, item)
+            emit(item)
+            index++
+        }
     }
 }

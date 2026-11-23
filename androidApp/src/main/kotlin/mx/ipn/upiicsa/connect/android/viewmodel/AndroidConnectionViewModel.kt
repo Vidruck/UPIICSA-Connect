@@ -1,7 +1,11 @@
 package mx.ipn.upiicsa.connect.android.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -10,15 +14,31 @@ import kotlinx.coroutines.launch
 import mx.ipn.upiicsa.connect.android.model.AndroidDeviceRepository
 import mx.ipn.upiicsa.connect.android.model.AndroidMediaStreamRepository
 import mx.ipn.upiicsa.connect.android.model.AndroidNotificationBridgeRepository
+import mx.ipn.upiicsa.connect.android.model.AndroidPairingRepository
+import mx.ipn.upiicsa.connect.shared.model.ActivityCategory
+import mx.ipn.upiicsa.connect.shared.model.ActivityLogEntry
+import mx.ipn.upiicsa.connect.shared.model.ClipboardHistoryEntry
 import mx.ipn.upiicsa.connect.shared.model.ConnectionDirection
 import mx.ipn.upiicsa.connect.shared.model.ConnectionStatus
 import mx.ipn.upiicsa.connect.shared.model.LinkFeatureToggles
+import mx.ipn.upiicsa.connect.shared.model.LinkTelemetry
 import mx.ipn.upiicsa.connect.shared.model.NotificationResolutionAction
 import mx.ipn.upiicsa.connect.shared.model.PhoneNotificationItem
 import mx.ipn.upiicsa.connect.shared.model.RemoteDeviceDescriptor
 import mx.ipn.upiicsa.connect.shared.model.ThemePreference
 import mx.ipn.upiicsa.connect.shared.model.TransportType
 import mx.ipn.upiicsa.connect.shared.protocol.DummyRustCoreBridge
+
+/**
+ * Pestañas de navegación de la app móvil (independientes de iconos o recursos de UI).
+ */
+enum class AndroidTab(val label: String) {
+    ENLACE("Enlace"),
+    AVISOS("Avisos"),
+    PORTAPAPELES("Portapapeles"),
+    MULTIMEDIA("Multimedia"),
+    PANTALLA("Pantalla")
+}
 
 /**
  * Representa el estado único e inmutable consumido por la vista Compose en el patrón MVVM de Android.
@@ -28,14 +48,29 @@ data class AndroidConnectionUiState(
     val direction: ConnectionDirection = ConnectionDirection.MOBILE_TO_DESKTOP,
     val preferredTransport: TransportType = TransportType.USB_CABLE,
     val themePreference: ThemePreference = ThemePreference.SYSTEM_AUTO,
+    val selectedTab: AndroidTab = AndroidTab.ENLACE,
     val availableDesktops: List<RemoteDeviceDescriptor> = emptyList(),
+    val isScanning: Boolean = false,
     val connectedDesktop: RemoteDeviceDescriptor? = null,
+    val activeTransport: TransportType? = null,
+    val pairingPin: Int? = null,
     val featureToggles: LinkFeatureToggles = LinkFeatureToggles(),
     val notifications: List<PhoneNotificationItem> = emptyList(),
     val clipboardText: String = "",
+    val clipboardHistory: List<ClipboardHistoryEntry> = emptyList(),
+    val linkTelemetry: LinkTelemetry = LinkTelemetry(),
     val musicModePeakLevel: Float = 0f,
+    val microphoneLevel: Float = 0f,
+    val frameTick: Long = 0L,
+    val activityLog: List<ActivityLogEntry> = emptyList(),
     val statusMessage: String = "Listo para enlazar con ordenador Windows o GNU/Linux"
-)
+) {
+    /**
+     * Cantidad de notificaciones que aún no se resuelven desde el ordenador.
+     */
+    val pendingNotificationCount: Int
+        get() = notifications.count { !it.isResolved }
+}
 
 /**
  * ViewModel MVVM que coordina repositorios Android sin contener referencias visuales a Activity o Composables.
@@ -43,11 +78,18 @@ data class AndroidConnectionUiState(
 class AndroidConnectionViewModel(
     private val deviceRepository: AndroidDeviceRepository,
     private val notificationRepository: AndroidNotificationBridgeRepository,
-    private val mediaStreamRepository: AndroidMediaStreamRepository
+    private val mediaStreamRepository: AndroidMediaStreamRepository,
+    private val pairingRepository: AndroidPairingRepository,
+    private val clock: () -> Long = System::currentTimeMillis
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AndroidConnectionUiState())
     val uiState: StateFlow<AndroidConnectionUiState> = _uiState.asStateFlow()
+
+    private var sessionJobs: List<Job> = emptyList()
+    private var musicJob: Job? = null
+    private var microphoneJob: Job? = null
+    private var frameJob: Job? = null
 
     init {
         cargarEstadoInicial()
@@ -58,15 +100,26 @@ class AndroidConnectionViewModel(
      */
     fun cargarEstadoInicial() {
         viewModelScope.launch {
+            _uiState.update { it.copy(isScanning = true, status = ConnectionStatus.SEARCHING) }
             val desktops = deviceRepository.scanAvailableDesktops()
             val notifs = notificationRepository.loadActiveNotifications()
             _uiState.update { state ->
                 state.copy(
                     availableDesktops = desktops,
-                    notifications = notifs
+                    notifications = notifs,
+                    isScanning = false,
+                    status = if (state.connectedDesktop != null) ConnectionStatus.CONNECTED else ConnectionStatus.DISCONNECTED,
+                    statusMessage = if (state.connectedDesktop != null) state.statusMessage else "${desktops.size} ordenador(es) disponible(s)"
                 )
             }
         }
+    }
+
+    /**
+     * Cambia la pestaña visible.
+     */
+    fun selectTab(tab: AndroidTab) {
+        _uiState.update { it.copy(selectedTab = tab) }
     }
 
     /**
@@ -96,18 +149,23 @@ class AndroidConnectionViewModel(
     fun connectToDesktop(desktop: RemoteDeviceDescriptor) {
         viewModelScope.launch {
             val current = _uiState.value
+            _uiState.update { it.copy(status = ConnectionStatus.PAIRING, statusMessage = "Emparejando con ${desktop.deviceName}…") }
             val chosen = deviceRepository.connectToDesktop(
                 desktop = desktop,
                 requestedTransport = current.preferredTransport,
                 direction = current.direction
             )
+            val pin = pairingRepository.pairingPinFor(desktop.deviceId)
             _uiState.update { state ->
                 state.copy(
                     status = ConnectionStatus.CONNECTED,
                     connectedDesktop = desktop,
+                    activeTransport = chosen,
+                    pairingPin = pin,
                     statusMessage = "Enlazado a ${desktop.deviceName} vía ${chosen.displayLabel}"
-                )
+                ).withLog(ActivityCategory.CONNECTION, "Enlace con ${desktop.deviceName} vía ${chosen.shortLabel}")
             }
+            startSessionStreams(chosen)
         }
     }
 
@@ -116,15 +174,20 @@ class AndroidConnectionViewModel(
      */
     fun disconnectDesktop() {
         viewModelScope.launch {
+            stopAllStreams()
             deviceRepository.disconnectDesktop()
             _uiState.update { state ->
                 state.copy(
                     status = ConnectionStatus.DISCONNECTED,
                     connectedDesktop = null,
+                    activeTransport = null,
+                    pairingPin = null,
                     musicModePeakLevel = 0f,
+                    microphoneLevel = 0f,
+                    linkTelemetry = LinkTelemetry(),
                     featureToggles = LinkFeatureToggles(),
                     statusMessage = "Desconectado del ordenador"
-                )
+                ).withLog(ActivityCategory.CONNECTION, "Sesión finalizada")
             }
         }
     }
@@ -137,7 +200,7 @@ class AndroidConnectionViewModel(
             state.copy(
                 featureToggles = state.featureToggles.copy(syncNotifications = enabled),
                 statusMessage = if (enabled) "Puente de notificaciones activo" else "Puente de notificaciones pausado"
-            )
+            ).withLog(ActivityCategory.NOTIFICATION, if (enabled) "Puente de notificaciones activo" else "Puente pausado")
         }
     }
 
@@ -151,8 +214,18 @@ class AndroidConnectionViewModel(
                 state.copy(
                     notifications = updated,
                     statusMessage = "Notificación resuelta remotamente sin interrumpir flujo"
-                )
+                ).withLog(ActivityCategory.NOTIFICATION, "Resolución recibida desde la PC")
             }
+        }
+    }
+
+    /**
+     * Activa o pausa el portapapeles compartido.
+     */
+    fun toggleClipboardSync(enabled: Boolean) {
+        _uiState.update { state ->
+            state.copy(featureToggles = state.featureToggles.copy(syncClipboard = enabled))
+                .withLog(ActivityCategory.CLIPBOARD, if (enabled) "Portapapeles compartido activo" else "Portapapeles pausado")
         }
     }
 
@@ -160,13 +233,17 @@ class AndroidConnectionViewModel(
      * Sincroniza texto desde el portapapeles de Android hacia la sesión conectada.
      */
     fun syncClipboard(text: String) {
+        if (text.isBlank()) {
+            return
+        }
         viewModelScope.launch {
             val synced = deviceRepository.syncClipboardFromMobile(text)
             _uiState.update { state ->
                 state.copy(
                     clipboardText = synced,
+                    clipboardHistory = (listOf(ClipboardHistoryEntry(synced, fromMobile = true, epochMillis = clock())) + state.clipboardHistory).take(8),
                     statusMessage = "Portapapeles enviado al ordenador (${synced.length} caracteres)"
-                )
+                ).withLog(ActivityCategory.CLIPBOARD, "Texto enviado al ordenador (${synced.length} caracteres)")
             }
         }
     }
@@ -186,8 +263,19 @@ class AndroidConnectionViewModel(
                     featureToggles = state.featureToggles.copy(musicMode = updatedConfig),
                     musicModePeakLevel = metrics?.peakNormalized ?: 0f,
                     statusMessage = if (enabled) "Music Mode activo: audio dirigido a PC" else "Music Mode detenido"
-                )
+                ).withLog(ActivityCategory.MEDIA, if (enabled) "Music Mode activo" else "Music Mode detenido")
             }
+            musicJob?.cancel()
+            musicJob = if (enabled) {
+                viewModelScope.launch {
+                    mediaStreamRepository.musicLevelStream(updatedConfig.gainBoostFactor).collect { level ->
+                        _uiState.update { it.copy(musicModePeakLevel = level) }
+                    }
+                }
+            } else {
+                null
+            }
+            refreshFrameClock()
         }
     }
 
@@ -206,9 +294,21 @@ class AndroidConnectionViewModel(
             _uiState.update { state ->
                 state.copy(
                     featureToggles = state.featureToggles.copy(remoteCameraMic = updatedConfig),
+                    microphoneLevel = if (enabled) state.microphoneLevel else 0f,
                     statusMessage = if (enabled) "Cámara y micrófono remotos activos" else "Cámara y micrófono detenidos"
-                )
+                ).withLog(ActivityCategory.MEDIA, if (enabled) "Cámara y micrófono activos" else "Cámara y micrófono detenidos")
             }
+            microphoneJob?.cancel()
+            microphoneJob = if (enabled) {
+                viewModelScope.launch {
+                    mediaStreamRepository.microphoneLevelStream().collect { level ->
+                        _uiState.update { it.copy(microphoneLevel = level) }
+                    }
+                }
+            } else {
+                null
+            }
+            refreshFrameClock()
         }
     }
 
@@ -224,10 +324,84 @@ class AndroidConnectionViewModel(
                 state.copy(
                     featureToggles = state.featureToggles.copy(secondaryDisplay = updatedConfig),
                     statusMessage = if (enabled) "Dispositivo listo como monitor secundario" else "Monitor secundario desactivado"
-                )
+                ).withLog(ActivityCategory.DISPLAY, if (enabled) "Receptor de pantalla activo" else "Receptor de pantalla detenido")
             }
+            refreshFrameClock()
         }
     }
+
+    /**
+     * Inicia los flujos ligados a la sesión: telemetría, portapapeles del ordenador y notificaciones nuevas.
+     */
+    private fun startSessionStreams(transport: TransportType) {
+        sessionJobs.forEach { it.cancel() }
+        sessionJobs = listOf(
+            viewModelScope.launch {
+                deviceRepository.linkTelemetryStream(transport).collect { telemetry ->
+                    _uiState.update { it.copy(linkTelemetry = telemetry) }
+                }
+            },
+            viewModelScope.launch {
+                deviceRepository.clipboardFromDesktopStream().collect { text ->
+                    _uiState.update { state ->
+                        if (!state.featureToggles.syncClipboard) {
+                            state
+                        } else {
+                            state.copy(
+                                clipboardText = text,
+                                clipboardHistory = (listOf(ClipboardHistoryEntry(text, fromMobile = false, epochMillis = clock())) + state.clipboardHistory).take(8)
+                            ).withLog(ActivityCategory.CLIPBOARD, "Texto recibido del ordenador")
+                        }
+                    }
+                }
+            },
+            viewModelScope.launch {
+                notificationRepository.incomingNotifications().collect { item ->
+                    _uiState.update { state ->
+                        if (!state.featureToggles.syncNotifications) {
+                            state
+                        } else {
+                            state.copy(notifications = listOf(item) + state.notifications.filterNot { it.notificationId == item.notificationId })
+                                .withLog(ActivityCategory.NOTIFICATION, "${item.appName} espejada al ordenador")
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    /**
+     * Mantiene el reloj de cuadros solo mientras alguna vista previa animada lo necesite.
+     */
+    private fun refreshFrameClock() {
+        val toggles = _uiState.value.featureToggles
+        val needsClock = toggles.musicMode.enabled || toggles.remoteCameraMic.cameraEnabled || toggles.secondaryDisplay.enabled
+        if (needsClock && frameJob?.isActive != true) {
+            frameJob = viewModelScope.launch {
+                mediaStreamRepository.frameTicks().collect { tick -> _uiState.update { it.copy(frameTick = tick) } }
+            }
+        } else if (!needsClock) {
+            frameJob?.cancel()
+            frameJob = null
+        }
+    }
+
+    /**
+     * Cancela todos los flujos de sesión y multimedia.
+     */
+    private fun stopAllStreams() {
+        (sessionJobs + listOfNotNull(musicJob, microphoneJob, frameJob)).forEach { it.cancel() }
+        sessionJobs = emptyList()
+        musicJob = null
+        microphoneJob = null
+        frameJob = null
+    }
+
+    /**
+     * Agrega una entrada a la bitácora de actividad conservando las 40 más recientes.
+     */
+    private fun AndroidConnectionUiState.withLog(category: ActivityCategory, message: String): AndroidConnectionUiState =
+        copy(activityLog = (activityLog + ActivityLogEntry(clock(), category, message)).takeLast(40))
 
     companion object {
         /**
@@ -239,8 +413,16 @@ class AndroidConnectionViewModel(
             return AndroidConnectionViewModel(
                 deviceRepository = AndroidDeviceRepository(rustCore),
                 notificationRepository = AndroidNotificationBridgeRepository(),
-                mediaStreamRepository = AndroidMediaStreamRepository(rustCore)
+                mediaStreamRepository = AndroidMediaStreamRepository(rustCore),
+                pairingRepository = AndroidPairingRepository(rustCore)
             )
+        }
+
+        /**
+         * Fábrica compatible con `viewModel()` para que el ViewModel sobreviva a cambios de configuración.
+         */
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer { createDefault() }
         }
     }
 }

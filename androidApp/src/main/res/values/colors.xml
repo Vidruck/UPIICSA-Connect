@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Paleta institucional UPIICSA - IPN para recursos nativos (barra de estado e icono). -->
+<resources>
+    <color name="verde_upiicsa">#FF006341</color>
+    <color name="verde_upiicsa_oscuro">#FF00482F</color>
+    <color name="oro_upiicsa">#FFF2A900</color>
+    <color name="guinda_ipn_claro">#FFE07A9F</color>
+    <color name="fondo_claro">#FFF5F8F6</color>
+    <color name="fondo_oscuro">#FF0D1512</color>
+</resources>
