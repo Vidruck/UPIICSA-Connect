@@ -1,14 +1,24 @@
+//! Core nativo de UPIICSA-Connect: transporte priorizado, protocolo de canales, DSP y puente FFI.
+
+pub mod audio_jitter;
 pub mod ffi_bridge;
+pub mod link_supervisor;
+pub mod pairing;
+pub mod protocol;
 pub mod signal_dsp;
+pub mod stream_decoder;
 pub mod transport;
 
 #[cfg(test)]
 mod tests {
     use super::ffi_bridge::{
-        upiicsa_compute_frame_crc32, upiicsa_probe_usb_device, upiicsa_process_music_mode_pcm,
-        upiicsa_select_transport_medium,
+        upiicsa_compute_frame_crc32, upiicsa_core_version, upiicsa_derive_pairing_pin,
+        upiicsa_encode_frame, upiicsa_probe_usb_device, upiicsa_process_music_mode_pcm,
+        upiicsa_select_transport_medium, upiicsa_validate_wire_frame,
     };
+    use super::pairing::derive_pairing_pin;
     use super::signal_dsp::{MusicModeDspConfig, SignalDspProcessor, VideoChunkHeader};
+    use super::transport::compute_crc32;
     use super::transport::{ServiceChannel, TransportMedium, TransportMultiplexer};
 
     /// Verifica que el multiplexor siempre elija Cable USB antes que Wi-Fi o Bluetooth.
@@ -45,7 +55,8 @@ mod tests {
         assert_ne!(frame.crc32, 0);
 
         let encoded = TransportMultiplexer::encode_wire_bytes(&frame);
-        let decoded = TransportMultiplexer::decode_wire_bytes(&encoded).expect("Debe decodificar trama valida");
+        let decoded = TransportMultiplexer::decode_wire_bytes(&encoded)
+            .expect("Debe decodificar trama valida");
         assert_eq!(decoded, frame);
     }
 
@@ -95,7 +106,8 @@ mod tests {
         assert_eq!(upiicsa_probe_usb_device(0), 0);
 
         let mut audio = [500_i16, -500_i16];
-        let clipped = unsafe { upiicsa_process_music_mode_pcm(audio.as_mut_ptr(), audio.len(), 2.0) };
+        let clipped =
+            unsafe { upiicsa_process_music_mode_pcm(audio.as_mut_ptr(), audio.len(), 2.0) };
         assert_eq!(clipped, 0);
         assert_eq!(audio[0], 1000);
 
@@ -103,4 +115,68 @@ mod tests {
         let crc = unsafe { upiicsa_compute_frame_crc32(data.as_ptr(), data.len(), 2, 1) };
         assert_ne!(crc, 0);
     }
+
+    /// Comprueba las nuevas funciones FFI de serialización, validación, versión y PIN de emparejamiento.
+    #[test]
+    fn prueba_puente_ffi_tramas_y_emparejamiento() {
+        assert_eq!(upiicsa_core_version(), 0x00_02_00);
+
+        let payload = b"UPIICSA";
+        let mut out = [0_u8; 64];
+        let written = unsafe {
+            upiicsa_encode_frame(
+                1,
+                2,
+                7,
+                payload.as_ptr(),
+                payload.len(),
+                out.as_mut_ptr(),
+                out.len(),
+            )
+        };
+        assert_eq!(written, 23);
+        let valid = unsafe { upiicsa_validate_wire_frame(out.as_ptr(), written as usize) };
+        assert_eq!(valid, 2);
+        out[20] ^= 0x55;
+        let invalid = unsafe { upiicsa_validate_wire_frame(out.as_ptr(), written as usize) };
+        assert_eq!(invalid, -7);
+
+        let mut tiny = [0_u8; 4];
+        let too_small = unsafe {
+            upiicsa_encode_frame(
+                1,
+                2,
+                7,
+                payload.as_ptr(),
+                payload.len(),
+                tiny.as_mut_ptr(),
+                tiny.len(),
+            )
+        };
+        assert_eq!(too_small, -2);
+
+        let d = "pc-linux-upiicsa";
+        let m = "usb-pixel8-upiicsa";
+        let pin =
+            unsafe { upiicsa_derive_pairing_pin(d.as_ptr(), d.len(), m.as_ptr(), m.len(), 42) };
+        assert_eq!(pin, derive_pairing_pin(d, m, 42));
+    }
+
+    /// Fija los vectores de referencia CRC32 y PIN compartidos con las pruebas Kotlin de DummyRustCoreBridge.
+    #[test]
+    fn prueba_vectores_de_referencia_compartidos() {
+        assert_eq!(compute_crc32(b"UPIICSA", 2, 7), VECTOR_CRC_UPIICSA);
+        assert_eq!(compute_crc32(b"", 1, 1), VECTOR_CRC_VACIO);
+        assert_eq!(
+            derive_pairing_pin("pc-linux-upiicsa", "usb-pixel8-upiicsa", 42),
+            VECTOR_PIN
+        );
+    }
+
+    /// Vector CRC32 de "UPIICSA" en canal 2 y secuencia 7.
+    const VECTOR_CRC_UPIICSA: u32 = 2_972_122_761;
+    /// Vector CRC32 de carga vacía en canal 1 y secuencia 1.
+    const VECTOR_CRC_VACIO: u32 = 2_353_393_211;
+    /// Vector de PIN para los identificadores de prueba con nonce 42.
+    const VECTOR_PIN: u32 = 178_633;
 }
