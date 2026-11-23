@@ -30,8 +30,8 @@ Plataforma multiplataforma de convergencia y continuidad entre equipos de escrit
 ## Stack Tecnológico y Arquitectura
 
 - **Core de Señales y Transporte (`core-rust/`):** Implementado en **Rust** (`std`) para procesamiento DSP de baja latencia (*Music Mode*, micrófono, video), empaquetado binario con verificación CRC32 y multiplexing de transporte con prioridad `USB -> Wi-Fi / Bluetooth`, expuesto mediante interfaz FFI (`extern "C"`) para Kotlin Multiplatform.
-- **Módulo Compartido (`shared/`):** **Kotlin Multiplatform** con modelos de dominio, contratos hacia el core Rust y tema oficial **UPIICSA - IPN** (Verde `#006341`, Oro `#F2A900`, Guinda `#6C1D45`) adaptable a Light/Dark.
-- **Escritorio Windows y GNU/Linux (`desktopApp/`):** Arquitectura **Ports & Adapters (Hexagonal)** con **adaptadores estrictamente segregados por S.O. y por servicio** (evitando Clases Dios).
+- **Módulo Compartido (`shared/`):** **Kotlin Multiplatform** con modelos de dominio, códec del protocolo binario, contratos hacia el core Rust, tema oficial **UPIICSA - IPN** (Verde `#006341`, Oro `#F2A900`, Guinda `#6C1D45`) adaptable a Light/Dark y biblioteca de componentes visuales compartidos.
+- **Escritorio Windows y GNU/Linux (`desktopApp/`):** Arquitectura **Ports & Adapters (Hexagonal)** con **adaptadores estrictamente segregados por S.O. y por servicio** (evitando Clases Dios), panel con 7 secciones y carga del core Rust vía **JNA**.
 - **Móvil Android (`androidApp/`):** Arquitectura **MVVM** (`Model` -> `ViewModel` con `StateFlow` -> `View` en Compose).
 
 ---
@@ -46,10 +46,23 @@ Plataforma multiplataforma de convergencia y continuidad entre equipos de escrit
 
 ---
 
-## Verificación del Core en Rust
+## Compilación, Ejecución y Pruebas
 
-El núcleo de procesamiento de señales y transporte (`core-rust`) no depende de bibliotecas externas de red y puede compilarse y probarse directamente con Cargo:
+El repositorio incluye el **Gradle Wrapper 8.10.2**. Requisitos: JDK 17, Android SDK 34 (para configurar los módulos KMP) y Rust estable. En GNU/Linux puede prepararse todo con [`scripts/setup-cloud-env.sh`](scripts/setup-cloud-env.sh); en Windows consulte [`docs/STACK_E_INSTALACION_WINDOWS.md`](docs/STACK_E_INSTALACION_WINDOWS.md).
 
 ```bash
+# Core nativo Rust (24 pruebas, sin dependencias externas)
 cargo test --manifest-path core-rust/Cargo.toml
+
+# Compilar el core como biblioteca compartida y ejecutar el escritorio (lo carga vía JNA)
+./gradlew :desktopApp:buildRustCore
+./gradlew :desktopApp:run
+
+# Pruebas Kotlin: códec, paridad con Rust, servicio, reglas de arquitectura y capturas de pantalla
+./gradlew :shared:desktopTest :desktopApp:desktopTest
+
+# APK debug de Android
+./gradlew :androidApp:assembleDebug
 ```
+
+Las pruebas de escritorio guardan capturas de las 7 secciones en modo claro y oscuro en `desktopApp/build/screenshots/`. Mientras no existan los transportes y drivers reales, los datos en vivo (notificaciones, audio, cámara, latidos) provienen de simuladores documentados en [`docs/CONTRATOS_DUMMY.md`](docs/CONTRATOS_DUMMY.md).

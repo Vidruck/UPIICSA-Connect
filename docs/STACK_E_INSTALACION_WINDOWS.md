@@ -14,6 +14,7 @@ Este documento define las tecnologías que el equipo desarrollador debe conocer 
 | **Android Studio + Android SDK** | SDK `34` (`minSdk 26`) | Compilación, emulación y depuración de `androidApp` vía **ADB**. |
 | **Rust + Cargo (`rustup`)** | Estable (`1.80+`, MSVC) | Compilación y pruebas del núcleo nativo de señales y transporte (`core-rust`). |
 | **Visual Studio C++ Build Tools** | 2022 (`Desktop development with C++`) | Linker (`link.exe`) y SDK de Windows requeridos por Rust (`x86_64-pc-windows-msvc`). |
+| **JNA (Java Native Access)** | `5.15.0` (dependencia Gradle) | Carga de `upiicsa_core_rs.dll` / `.so` desde la app de escritorio. |
 | **Git** | `2.40+` | Control de versiones bajo el flujo `main` / `dev` y commits en español. |
 
 ### Conocimientos Recomendados para el Equipo
@@ -80,7 +81,23 @@ git clone -b dev git@github.com:Vidruck/UPIICSA-Connect.git
 cd UPIICSA-Connect
 cargo test --manifest-path core-rust/Cargo.toml
 ```
-Si `cargo test` muestra `5 passed; 0 failed`, el entorno Rust está listo. Posteriormente, abrir la carpeta raíz `UPIICSA-Connect` en **Android Studio** para sincronizar Gradle.
+Si `cargo test` muestra `24 passed; 0 failed`, el entorno Rust está listo. Posteriormente, abrir la carpeta raíz `UPIICSA-Connect` en **Android Studio** para sincronizar Gradle.
+
+### Paso 7: Compilar el core nativo y ejecutar la app de escritorio
+El repositorio incluye el **Gradle Wrapper** (`gradlew.bat`), por lo que no es necesario instalar Gradle por separado:
+```powershell
+.\gradlew.bat :desktopApp:buildRustCore
+.\gradlew.bat :desktopApp:run
+```
+* `buildRustCore` genera `core-rust\target\release\upiicsa_core_rs.dll`, que el escritorio carga automáticamente vía **JNA**. Si la DLL no existe, la app arranca igual con la simulación Kotlin (en **Ajustes** se indica "Nativo" o "Simulado").
+* Para otra ubicación de la DLL: `-Dupiicsa.core.lib.path=C:\ruta\upiicsa_core_rs.dll` o la variable `UPIICSA_CORE_LIB`.
+
+### Paso 8: Ejecutar las pruebas y generar el APK
+```powershell
+.\gradlew.bat :shared:desktopTest :desktopApp:desktopTest
+.\gradlew.bat :androidApp:assembleDebug
+```
+Las pruebas de escritorio generan capturas PNG de cada sección (modo claro y oscuro) en `desktopApp\build\screenshots\`. El APK queda en `androidApp\build\outputs\apk\debug\`.
 
 ---
 
