@@ -48,6 +48,8 @@ class ChannelMessageCodecTest {
             .map { if (it is Char) it.code.toByte() else (it as Int).toByte() }
             .toByteArray()
         assertContentEquals(esperado, aviso)
+        val saludo = ChannelMessageCodec.encode(ChannelMessage.HandshakeHello(ConnectionDirection.MOBILE_TO_DESKTOP, "Px", 482_913, 1))
+        assertContentEquals(byteArrayOf(0x50, 2, 0, 2, 'P'.code.toByte(), 'x'.code.toByte(), 0, 0x07, 0x5E, 0x61, 0, 1), saludo)
     }
 
     /**

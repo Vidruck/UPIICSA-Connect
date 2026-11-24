@@ -12,12 +12,14 @@ import mx.ipn.upiicsa.connect.shared.model.PhoneNotificationItem
 import mx.ipn.upiicsa.connect.shared.model.RemoteDeviceDescriptor
 import mx.ipn.upiicsa.connect.shared.model.TransportType
 import mx.ipn.upiicsa.connect.shared.protocol.ChannelMessage
+import mx.ipn.upiicsa.connect.shared.protocol.ChannelMessageCodec
 import mx.ipn.upiicsa.connect.shared.protocol.ContentOrigin
 import java.io.IOException
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Convierte los mensajes recibidos por el socket del teléfono en [PhoneEvent] y mantiene el enlace vivo con latidos:
@@ -31,7 +33,8 @@ class SocketPhoneEventStreamAdapter(
 ) : PhoneEventStreamOutboundPort {
 
     /**
-     * Flujo de eventos del teléfono conectado; emite [PhoneEvent.LinkClosed] al cerrarse el socket o vencer los latidos.
+     * Flujo de eventos del teléfono conectado; emite [PhoneEvent.LinkClosed] al cerrarse el socket, vencer los latidos o
+     * recibir un saludo con otra versión de protocolo.
      */
     override fun events(device: RemoteDeviceDescriptor, transport: TransportType): Flow<PhoneEvent> = channelFlow {
         val link = session.activeChannel()
@@ -40,12 +43,12 @@ class SocketPhoneEventStreamAdapter(
             return@channelFlow
         }
         val lastInbound = AtomicLong(clock())
-        var closeReason = "El teléfono cerró la conexión"
+        val closeReason = AtomicReference("El teléfono cerró la conexión")
         val heartbeats = launch {
             while (isActive) {
                 delay(heartbeatIntervalMs)
                 if (clock() - lastInbound.get() > heartbeatTimeoutMs) {
-                    closeReason = "Sin latidos del teléfono durante ${heartbeatTimeoutMs / 1000} s"
+                    closeReason.set("Sin latidos del teléfono durante ${heartbeatTimeoutMs / 1000} s")
                     link.close()
                     break
                 }
@@ -59,11 +62,19 @@ class SocketPhoneEventStreamAdapter(
         }
         link.incoming().collect { message ->
             lastInbound.set(clock())
-            toPhoneEvent(message)?.let { send(it) }
+            if (message is ChannelMessage.HandshakeHello && message.protocolVersion != ChannelMessageCodec.PROTOCOL_VERSION) {
+                closeReason.set(
+                    "Versión de protocolo incompatible (teléfono v${message.protocolVersion}, " +
+                        "ordenador v${ChannelMessageCodec.PROTOCOL_VERSION}); actualice ambas apps"
+                )
+                link.close()
+            } else {
+                toPhoneEvent(message)?.let { send(it) }
+            }
         }
         heartbeats.cancel()
         session.closeChannel()
-        send(PhoneEvent.LinkClosed(closeReason))
+        send(PhoneEvent.LinkClosed(closeReason.get()))
     }
 
     /**

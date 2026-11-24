@@ -3,6 +3,9 @@ use crate::transport::ServiceChannel;
 /// Longitud máxima en bytes de un texto codificado dentro de un mensaje (prefijo u16).
 pub const MAX_TEXT_BYTES: usize = u16::MAX as usize;
 
+/// Versión del formato de mensajes; viaja en `HandshakeHello` y ambos extremos deben coincidir para continuar.
+pub const PROTOCOL_VERSION: u16 = 1;
+
 /// Origen de un contenido sincronizado entre el ordenador y el teléfono.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,6 +60,7 @@ pub enum ChannelMessage {
         direction: LinkDirection,
         device_name: String,
         pairing_pin: u32,
+        protocol_version: u16,
     },
     Heartbeat {
         timestamp_ms: u64,
@@ -166,11 +170,13 @@ impl ChannelMessage {
                 direction,
                 device_name,
                 pairing_pin,
+                protocol_version,
             } => {
                 out.push(tag::HANDSHAKE_HELLO);
                 out.push(*direction as u8);
                 write_text(&mut out, device_name)?;
                 out.extend_from_slice(&pairing_pin.to_be_bytes());
+                out.extend_from_slice(&protocol_version.to_be_bytes());
             }
             Self::Heartbeat { timestamp_ms } => {
                 out.push(tag::HEARTBEAT);
@@ -233,6 +239,7 @@ impl ChannelMessage {
                     direction,
                     device_name: reader.text()?,
                     pairing_pin: reader.u32()?,
+                    protocol_version: reader.u16()?,
                 }
             }
             tag::HEARTBEAT => Self::Heartbeat {
@@ -376,6 +383,7 @@ mod tests {
                 direction: LinkDirection::MobileToDesktop,
                 device_name: "Pixel 8 Pro".into(),
                 pairing_pin: 482_913,
+                protocol_version: PROTOCOL_VERSION,
             },
             ChannelMessage::Heartbeat {
                 timestamp_ms: 1_700_000_000_123,
@@ -404,6 +412,18 @@ mod tests {
         .encode()
         .unwrap();
         assert_eq!(musica, vec![0x40, 1, 0x04, 0x7E]);
+        let saludo = ChannelMessage::HandshakeHello {
+            direction: LinkDirection::MobileToDesktop,
+            device_name: "Px".into(),
+            pairing_pin: 482_913,
+            protocol_version: 1,
+        }
+        .encode()
+        .unwrap();
+        assert_eq!(
+            saludo,
+            vec![0x50, 2, 0, 2, b'P', b'x', 0, 0x07, 0x5E, 0x61, 0, 1]
+        );
         let aviso = ChannelMessage::NotificationPosted {
             notification_id: "n1".into(),
             app_name: "Wa".into(),

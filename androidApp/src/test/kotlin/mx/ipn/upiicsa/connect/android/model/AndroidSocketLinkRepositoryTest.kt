@@ -20,8 +20,10 @@ import java.net.InetSocketAddress
 import java.net.ServerSocket
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Pruebas JVM (sin emulador) del repositorio de enlace real contra un servidor TCP local que actúa como el ordenador.
@@ -77,6 +79,28 @@ class AndroidSocketLinkRepositoryTest {
                 )
                 desktop.close()
                 repository.disconnect()
+            }
+        }
+    }
+
+    /**
+     * Verifica que un ordenador con otra versión de protocolo cierre el enlace sin emitir su saludo.
+     */
+    @Test
+    fun saludoConOtraVersionDeProtocoloCierraElEnlace(): Unit = runBlocking {
+        ServerSocket().use { server ->
+            server.bind(InetSocketAddress(InetAddress.getLoopbackAddress(), 0))
+            val repository = AndroidSocketLinkRepository(core, host = "127.0.0.1", port = server.localPort)
+            withTimeout(10_000) {
+                val accepted = async(Dispatchers.IO) { server.accept() }
+                assertNull(repository.connect(ConnectionDirection.MOBILE_TO_DESKTOP, deviceName = "Pixel de prueba"))
+                val desktop = FrameSocketChannel(accepted.await(), core, TransportType.USB_CABLE)
+                desktop.send(ChannelMessage.HandshakeHello(ConnectionDirection.MOBILE_TO_DESKTOP, "PC futura", 123_456, protocolVersion = 2))
+                val events = repository.events().toList()
+                val closed = events.single() as DesktopLinkEvent.Closed
+                assertTrue(closed.reason.startsWith("Versión de protocolo incompatible (ordenador v2"))
+                assertFalse(repository.isConnected)
+                desktop.close()
             }
         }
     }

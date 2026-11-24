@@ -156,7 +156,7 @@ sequenceDiagram
 
     PC->>TR: select_best_medium(usb_ok=true, wifi_ok=true, bt_ok=true)
     TR-->>PC: TransportMedium::UsbCable (Prioridad 1)
-    PC->>Phone: HandshakeHello(dirección, nombre, PIN) por SessionControl
+    PC->>Phone: HandshakeHello(dirección, nombre, PIN, versión de protocolo) por SessionControl
     Note over Phone,PC: Si el USB deja de enviar latidos, LinkSupervisor conmuta a Wi-Fi / Bluetooth y regresa al USB tras 2 s estables
 
     Phone->>DSP: Bloques PCM 48 kHz (Music Mode) con secuencia
@@ -193,12 +193,12 @@ Primer byte = etiqueta; textos UTF-8 con prefijo `u16`; booleanos estrictos 0/1;
 | `0x20` | Texto de portapapeles + origen | 2 |
 | `0x30` | Cámara / micrófono / cámara trasera | 4 |
 | `0x40` | Music Mode + ganancia en milésimas | 5 |
-| `0x50` | Saludo de enlace (dirección, nombre, PIN) | 6 |
+| `0x50` | Saludo de enlace (dirección, nombre, PIN, versión de protocolo `u16`; actual: 1) | 6 |
 | `0x60` | Latido con marca de tiempo | 6 |
 
 ### 5.3 Enlace TCP (`shared/src/jvmCommonMain/.../link/FrameSocketChannel.kt`)
 
-Código compartido por escritorio y Android (conjunto intermedio `jvmCommonMain`). Cada mensaje se serializa con el core (`encodeFrame`) y las lecturas parciales se reensamblan con `FrameReassembler` (paridad Kotlin de `stream_decoder.rs`, validación CRC32 delegada al core). El ordenador envía `Heartbeat` cada 1 s, el teléfono lo devuelve y la latencia es la mitad del viaje redondo; sin tráfico durante 3 s el enlace se cierra. Cancelar la recolección de `incoming()` cierra el socket para liberar el hilo lector. El servidor escucha solo en loopback hasta contar con mTLS (v0.4.0).
+Código compartido por escritorio y Android (conjunto intermedio `jvmCommonMain`). Cada mensaje se serializa con el core (`encodeFrame`) y las lecturas parciales se reensamblan con `FrameReassembler` (paridad Kotlin de `stream_decoder.rs`, validación CRC32 delegada al core). El ordenador envía `Heartbeat` cada 1 s, el teléfono lo devuelve y la latencia es la mitad del viaje redondo; sin tráfico durante 3 s el enlace se cierra. Cancelar la recolección de `incoming()` cierra el socket para liberar el hilo lector. El servidor escucha solo en loopback hasta contar con mTLS (v0.4.0). Si el saludo del otro extremo trae una versión de protocolo distinta de `PROTOCOL_VERSION`, el enlace se cierra con el motivo «Versión de protocolo incompatible».
 
 La compatibilidad Kotlin ↔ Rust se garantiza con vectores de referencia idénticos en `core-rust/src/lib.rs`, `core-rust/src/protocol.rs` y `shared/src/commonTest/`.
 

@@ -13,6 +13,7 @@ Todas las versiones se publican en la sección *Releases* del repositorio. Las v
 - Portapapeles real del escritorio: `wl-clipboard`, `xclip`, `xsel` o AWT en GNU/Linux y `user32.dll` en Windows. Lo que se copia en la PC durante la sesión se envía al teléfono automáticamente.
 - Notificaciones del teléfono en el escritorio: D-Bus (`org.freedesktop.Notifications`) en GNU/Linux y toasts en Windows; se retiran al responderlas, marcarlas o descartarlas desde la PC.
 - *Music Mode* suena en la tarjeta de sonido de la PC (Java Sound sobre ALSA/PipeWire o DirectSound/WASAPI).
+- El saludo de enlace incluye la versión de protocolo; versiones distintas se desconectan con un aviso para actualizar ambas apps.
 
 ### Cambiado
 - El portapapeles y las notificaciones del sistema solo se usan con el enlace real; con el teléfono simulado siguen en memoria para no sobrescribir el portapapeles del usuario.
