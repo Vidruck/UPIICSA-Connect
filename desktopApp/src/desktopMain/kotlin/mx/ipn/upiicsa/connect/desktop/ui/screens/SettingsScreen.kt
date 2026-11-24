@@ -11,11 +11,14 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Usb
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import mx.ipn.upiicsa.connect.desktop.ui.DesktopPanelController
@@ -24,6 +27,7 @@ import mx.ipn.upiicsa.connect.desktop.ui.ScreenColumn
 import mx.ipn.upiicsa.connect.shared.model.ThemePreference
 import mx.ipn.upiicsa.connect.shared.ui.components.MetricTile
 import mx.ipn.upiicsa.connect.shared.ui.components.SectionCard
+import mx.ipn.upiicsa.connect.shared.ui.components.ServiceToggleRow
 import mx.ipn.upiicsa.connect.shared.ui.components.UpiicsaWordmark
 import mx.ipn.upiicsa.connect.shared.ui.theme.UpiicsaThemeTokens
 
@@ -33,7 +37,7 @@ import mx.ipn.upiicsa.connect.shared.ui.theme.UpiicsaThemeTokens
 @Composable
 fun SettingsScreen(controller: DesktopPanelController, local: DesktopPanelLocalState) {
     val tokens = UpiicsaThemeTokens.extendedColors
-    val core = controller.coreInfo
+    val core by controller.coreInfo.collectAsState()
     ScreenColumn {
         SectionCard(title = "Apariencia", subtitle = "Identidad visual UPIICSA - IPN adaptable", icon = Icons.Rounded.Palette) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -79,9 +83,23 @@ fun SettingsScreen(controller: DesktopPanelController, local: DesktopPanelLocalS
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+        SectionCard(title = "Enlace con el teléfono", subtitle = "Activo: ${core.linkMode.label}", icon = Icons.Rounded.Usb) {
+            ServiceToggleRow(
+                icon = Icons.Rounded.Usb,
+                title = "Enlace real por cable USB",
+                subtitle = when {
+                    core.linkMode.lockedByEnvironment -> "Fijado al iniciar con UPIICSA_ENLACE / -Dupiicsa.enlace"
+                    core.realLinkPreferred != core.linkMode.realActive -> "Reinicie la app para aplicar el cambio"
+                    else -> "Se aplica al iniciar la app"
+                },
+                checked = core.realLinkPreferred,
+                onCheckedChange = controller::setRealLinkPreferred,
+                enabled = !core.linkMode.lockedByEnvironment
+            )
             Text(
-                text = "Enlace con el teléfono: ${core.linkModeLabel}. Para usar el enlace real inicie con -Dupiicsa.enlace=real " +
-                    "o UPIICSA_ENLACE=real, conecte el teléfono por USB con depuración activada y pulse Conectar en la app Android.",
+                text = "Con el enlace real se usan el portapapeles y las notificaciones del sistema. Conecte el teléfono por USB con " +
+                    "depuración activada, pulse Conectar aquí y luego en la app Android.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

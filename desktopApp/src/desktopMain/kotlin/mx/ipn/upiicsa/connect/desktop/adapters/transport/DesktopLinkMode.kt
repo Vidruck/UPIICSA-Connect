@@ -21,9 +21,24 @@ enum class DesktopLinkMode(val displayLabel: String) {
         /**
          * Lee el modo de la propiedad o variable de entorno; el simulador es el valor por omisión.
          */
-        fun fromEnvironment(): DesktopLinkMode {
-            val value = (System.getProperty(PROPERTY) ?: System.getenv(ENV)).orEmpty().trim().lowercase()
-            return if (value == "real") REAL_TCP else SIMULATED
+        fun fromEnvironment(): DesktopLinkMode = environmentOverride() ?: SIMULATED
+
+        /**
+         * Modo fijado por la propiedad o la variable de entorno (`real` o `simulado`); `null` si no se indicó.
+         */
+        fun environmentOverride(
+            property: String? = System.getProperty(PROPERTY),
+            environment: String? = System.getenv(ENV)
+        ): DesktopLinkMode? = when ((property ?: environment).orEmpty().trim().lowercase()) {
+            "real" -> REAL_TCP
+            "simulado" -> SIMULATED
+            else -> null
         }
+
+        /**
+         * Modo efectivo: la propiedad o variable de entorno tienen prioridad sobre la preferencia guardada en Ajustes.
+         */
+        fun resolve(override: DesktopLinkMode?, realLinkPreferred: Boolean): DesktopLinkMode =
+            override ?: if (realLinkPreferred) REAL_TCP else SIMULATED
     }
 }

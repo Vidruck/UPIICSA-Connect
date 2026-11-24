@@ -16,6 +16,8 @@ import mx.ipn.upiicsa.connect.desktop.domain.DesktopSessionState
 import mx.ipn.upiicsa.connect.desktop.domain.PhoneEvent
 import mx.ipn.upiicsa.connect.desktop.ports.inbound.CoreRuntimeInfo
 import mx.ipn.upiicsa.connect.desktop.ports.inbound.DesktopUseCases
+import mx.ipn.upiicsa.connect.desktop.ports.inbound.LinkModeInfo
+import mx.ipn.upiicsa.connect.desktop.ports.outbound.DesktopPreferencesOutboundPort
 import mx.ipn.upiicsa.connect.desktop.ports.outbound.DeviceTransportOutboundPort
 import mx.ipn.upiicsa.connect.desktop.ports.outbound.OsAudioSinkOutboundPort
 import mx.ipn.upiicsa.connect.desktop.ports.outbound.OsClipboardOutboundPort
@@ -53,7 +55,8 @@ class DesktopConnectionService(
     private val audioSinkPort: OsAudioSinkOutboundPort,
     private val phoneEventPort: PhoneEventStreamOutboundPort,
     private val localDeviceId: String = "pc-upiicsa-escritorio",
-    private val linkModeLabel: String = "Simulado (teléfono virtual)",
+    private val linkMode: LinkModeInfo = LinkModeInfo(),
+    private val preferencesPort: DesktopPreferencesOutboundPort? = null,
     private val clock: () -> Long = System::currentTimeMillis,
     private val clipboardPollIntervalMs: Long = 1_000L
 ) : DesktopUseCases {
@@ -67,7 +70,21 @@ class DesktopConnectionService(
      * Describe el núcleo nativo inyectado (binario Rust vía JNA o simulación Kotlin).
      */
     override fun coreRuntimeInfo(): CoreRuntimeInfo =
-        CoreRuntimeInfo(version = rustCore.coreVersion(), nativeBacked = rustCore.isNativeBacked, linkModeLabel = linkModeLabel)
+        CoreRuntimeInfo(
+            version = rustCore.coreVersion(),
+            nativeBacked = rustCore.isNativeBacked,
+            linkModeLabel = linkMode.label,
+            linkMode = linkMode,
+            realLinkPreferred = preferencesPort?.isRealLinkPreferred() ?: linkMode.realActive
+        )
+
+    /**
+     * Persiste la preferencia de enlace para el próximo arranque y retorna la información actualizada.
+     */
+    override fun setRealLinkPreferred(enabled: Boolean): CoreRuntimeInfo {
+        preferencesPort?.setRealLinkPreferred(enabled)
+        return coreRuntimeInfo()
+    }
 
     /**
      * Consulta los dispositivos disponibles ordenando primero los accesibles por cable USB.
