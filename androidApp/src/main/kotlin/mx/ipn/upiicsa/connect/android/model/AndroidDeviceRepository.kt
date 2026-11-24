@@ -27,6 +27,14 @@ class AndroidDeviceRepository(
     private var sequenceId: Long = 1L
 
     /**
+     * Describe el motor del core en uso (nativo JNI o simulación Kotlin) junto con su versión.
+     */
+    fun coreEngineLabel(): String {
+        val engine = if (rustCore.isNativeBacked) "Nativo (JNI)" else "Simulado (Kotlin)"
+        return "Core $engine · v${rustCore.coreVersion()}"
+    }
+
+    /**
      * Explora equipos de escritorio Windows o GNU/Linux disponibles dando prioridad a cable USB sobre Wi-Fi y Bluetooth.
      */
     suspend fun scanAvailableDesktops(): List<RemoteDeviceDescriptor> {

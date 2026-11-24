@@ -15,6 +15,7 @@ import mx.ipn.upiicsa.connect.android.model.AndroidDeviceRepository
 import mx.ipn.upiicsa.connect.android.model.AndroidMediaStreamRepository
 import mx.ipn.upiicsa.connect.android.model.AndroidNotificationBridgeRepository
 import mx.ipn.upiicsa.connect.android.model.AndroidPairingRepository
+import mx.ipn.upiicsa.connect.android.model.nativecore.AndroidNativeCoreLoader
 import mx.ipn.upiicsa.connect.shared.model.ActivityCategory
 import mx.ipn.upiicsa.connect.shared.model.ActivityLogEntry
 import mx.ipn.upiicsa.connect.shared.model.ClipboardHistoryEntry
@@ -27,7 +28,6 @@ import mx.ipn.upiicsa.connect.shared.model.PhoneNotificationItem
 import mx.ipn.upiicsa.connect.shared.model.RemoteDeviceDescriptor
 import mx.ipn.upiicsa.connect.shared.model.ThemePreference
 import mx.ipn.upiicsa.connect.shared.model.TransportType
-import mx.ipn.upiicsa.connect.shared.protocol.DummyRustCoreBridge
 
 /**
  * Pestañas de navegación de la app móvil (independientes de iconos o recursos de UI).
@@ -63,6 +63,7 @@ data class AndroidConnectionUiState(
     val microphoneLevel: Float = 0f,
     val frameTick: Long = 0L,
     val activityLog: List<ActivityLogEntry> = emptyList(),
+    val coreEngineLabel: String = "",
     val statusMessage: String = "Listo para enlazar con ordenador Windows o GNU/Linux"
 ) {
     /**
@@ -83,7 +84,7 @@ class AndroidConnectionViewModel(
     private val clock: () -> Long = System::currentTimeMillis
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(AndroidConnectionUiState())
+    private val _uiState = MutableStateFlow(AndroidConnectionUiState(coreEngineLabel = deviceRepository.coreEngineLabel()))
     val uiState: StateFlow<AndroidConnectionUiState> = _uiState.asStateFlow()
 
     private var sessionJobs: List<Job> = emptyList()
@@ -408,8 +409,7 @@ class AndroidConnectionViewModel(
          * Construye una instancia por defecto del ViewModel inyectando los repositorios de la capa Model.
          */
         fun createDefault(): AndroidConnectionViewModel {
-            // [DECISIÓN TÉCNICA]: Se emplea DummyRustCoreBridge en la fábrica por defecto hasta integrar la librería .so Android NDK.
-            val rustCore = DummyRustCoreBridge()
+            val rustCore = AndroidNativeCoreLoader.loadOrDummy()
             return AndroidConnectionViewModel(
                 deviceRepository = AndroidDeviceRepository(rustCore),
                 notificationRepository = AndroidNotificationBridgeRepository(),
