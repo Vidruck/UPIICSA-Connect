@@ -15,7 +15,7 @@ interface RustCoreBridgeContract {
     val isNativeBacked: Boolean
 
     /**
-     * Versión semántica del núcleo (por ejemplo, "0.2.0").
+     * Versión semántica del núcleo (por ejemplo, "0.3.0").
      */
     fun coreVersion(): String
 
@@ -74,8 +74,8 @@ class DummyRustCoreBridge : RustCoreBridgeContract {
      * Informa la versión del core que esta simulación replica.
      */
     override fun coreVersion(): String {
-        // [DUMMY-PRUEBAS]: Versión fija que replica core-rust 0.2.0 sin consultar upiicsa_core_version.
-        return "0.2.0"
+        // [DUMMY-PRUEBAS]: Versión fija que replica core-rust 0.3.0 sin consultar upiicsa_core_version.
+        return "0.3.0"
     }
 
     /**
