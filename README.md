@@ -69,6 +69,17 @@ Verifique la integridad con `sha256sum -c SHA256SUMS.txt`.
 
 Sin publicar, el mismo flujo compila todos los artefactos en cada Pull Request que modifique el empaquetado (`packaging/`, `build.gradle.kts` de las apps, `core-rust/Cargo.toml` o el propio flujo) y puede ejecutarse manualmente desde la pestaña *Actions* una vez que esté en la rama por omisión.
 
+## Enlace Real por Cable USB (experimental)
+
+Por omisión ambas apps usan el teléfono/ordenador simulado. Para probar el enlace real (rama `dev`, aún no incluido en una liberación):
+
+1. Active la **depuración USB** en el teléfono, conéctelo por cable y autorice el equipo (`adb devices` debe mostrarlo como `device`).
+2. Inicie el escritorio en modo real: `UPIICSA_ENLACE=real ./gradlew :desktopApp:run` (o `-Dupiicsa.enlace=real`). En **Ajustes** se indica el modo activo.
+3. En el escritorio pulse **Buscar** y **Conectar** sobre el teléfono detectado: se crea el túnel `adb reverse tcp:47800 tcp:47800` y el servidor espera 30 s.
+4. En Android, active **Enlace real por cable USB** (pestaña Enlace) y pulse **Conectar**. Ambos equipos muestran el mismo PIN.
+
+El servidor escucha únicamente en `127.0.0.1`; el enlace por Wi-Fi se habilitará junto con mTLS (v0.4.0).
+
 ## Compilación, Ejecución y Pruebas
 
 El repositorio incluye el **Gradle Wrapper 8.10.2**. Requisitos: JDK 17, Android SDK 34 (para configurar los módulos KMP) y Rust estable. En GNU/Linux puede prepararse todo con [`scripts/setup-cloud-env.sh`](scripts/setup-cloud-env.sh); en Windows consulte [`docs/STACK_E_INSTALACION_WINDOWS.md`](docs/STACK_E_INSTALACION_WINDOWS.md).
