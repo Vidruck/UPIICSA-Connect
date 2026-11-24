@@ -1,41 +1,66 @@
 package mx.ipn.upiicsa.connect.desktop.adapters.os.windows
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import mx.ipn.upiicsa.connect.desktop.adapters.audio.JavaSoundLineOpener
+import mx.ipn.upiicsa.connect.desktop.adapters.audio.JavaSoundPcmWriter
 import mx.ipn.upiicsa.connect.desktop.ports.outbound.OsAudioSinkOutboundPort
 
 /**
- * Adaptador exclusivo de Windows para enviar el audio de Music Mode hacia la tarjeta de sonido mediante WASAPI.
+ * Adaptador exclusivo de Windows para enviar el audio de Music Mode a la tarjeta de sonido (Java Sound sobre DirectSound/WASAPI).
+ * Sin `writer` (pruebas) o sin dispositivo de audio, contabiliza las muestras en memoria.
  */
-class WindowsWasapiAudioSinkAdapter : OsAudioSinkOutboundPort {
+class WindowsWasapiAudioSinkAdapter(
+    private val writer: JavaSoundPcmWriter? = null
+) : OsAudioSinkOutboundPort {
 
-    private var sinkOpen: Boolean = false
-    private var configuredRateHz: Int = 48_000
-    private var renderedSamples: Int = 0
+    @Volatile
+    private var memorySinkOpen: Boolean = false
+
+    @Volatile
+    private var memorySampleCount: Long = 0
 
     /**
-     * Inicializa el cliente de renderizado de audio WASAPI en Windows.
+     * Mecanismo efectivo de reproducción.
+     */
+    val backendLabel: String
+        get() = if (writer?.isOpen == true) "Java Sound (DirectSound/WASAPI)" else "Memoria (sin reproducción)"
+
+    /**
+     * Abre la salida de audio predeterminada de Windows.
      */
     override suspend fun openMusicModeSink(sampleRateHz: Int): Boolean {
-        // [DUMMY-PRUEBAS]: Simula apertura de IAudioClient / IAudioRenderClient de WASAPI en memoria.
-        configuredRateHz = sampleRateHz
-        sinkOpen = true
-        return true
+        val opened = writer != null && withContext(Dispatchers.IO) { writer.open(sampleRateHz) }
+        // [DECISIÓN TÉCNICA]: Sin tarjeta de sonido (servidores, CI) Music Mode sigue funcionando y solo se contabilizan las muestras.
+        memorySinkOpen = !opened
+        return opened || writer == null
     }
 
     /**
-     * Escribe muestras PCM procesadas en el buffer de salida de la tarjeta de sonido de Windows.
+     * Envía muestras PCM procesadas a la tarjeta de sonido de Windows.
      */
     override suspend fun writePcmSamples(samples: ShortArray) {
-        if (sinkOpen) {
-            // [DUMMY-PRUEBAS]: Registra muestras entregadas sin abrir flujo COM nativo de Windows.
-            renderedSamples = samples.size
+        when {
+            writer?.isOpen == true -> writer.write(samples)
+            memorySinkOpen -> memorySampleCount += samples.size
         }
     }
 
     /**
-     * Cierra el flujo WASAPI al desactivar Music Mode.
+     * Libera la salida de audio al detener Music Mode.
      */
     override suspend fun closeMusicModeSink() {
-        sinkOpen = false
-        renderedSamples = 0
+        memorySinkOpen = false
+        memorySampleCount = 0
+        writer?.let { active -> withContext(Dispatchers.IO) { active.close() } }
+    }
+
+    companion object {
+
+        /**
+         * Construye el adaptador con el dispositivo de reproducción predeterminado de Windows.
+         */
+        fun forHost(): WindowsWasapiAudioSinkAdapter =
+            WindowsWasapiAudioSinkAdapter(JavaSoundPcmWriter(JavaSoundLineOpener()))
     }
 }

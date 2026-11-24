@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import mx.ipn.upiicsa.connect.desktop.adapters.os.OsAdapterFactory
+import mx.ipn.upiicsa.connect.desktop.adapters.os.linux.LinuxPipeWireAudioSinkAdapter
 import mx.ipn.upiicsa.connect.desktop.adapters.simulation.DummyPhoneEventStreamAdapter
 import mx.ipn.upiicsa.connect.desktop.adapters.transport.MultiChannelTransportAdapter
 import mx.ipn.upiicsa.connect.desktop.application.DesktopConnectionService
@@ -45,7 +46,7 @@ class DesktopScreenshotTest {
             clipboardPort = bundle.clipboardPort,
             virtualDisplayPort = bundle.virtualDisplayPort,
             virtualCameraMicPort = bundle.virtualCameraMicPort,
-            audioSinkPort = bundle.audioSinkPort,
+            audioSinkPort = LinuxPipeWireAudioSinkAdapter(),
             phoneEventPort = phone
         )
         val device = service.discoverAvailableDevices().first()

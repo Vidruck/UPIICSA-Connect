@@ -62,24 +62,30 @@ object OsAdapterFactory {
 
     /**
      * Construye el paquete de puertos de salida desacoplado correspondiente al sistema operativo indicado.
+     * Con el enlace real se usan el portapapeles y las notificaciones del sistema; con el simulador quedan en memoria.
      */
-    fun createPortBundle(platform: DesktopOsPlatform = detectHostPlatform()): OsPortBundle {
+    fun createPortBundle(
+        platform: DesktopOsPlatform = detectHostPlatform(),
+        linkMode: DesktopLinkMode = DesktopLinkMode.SIMULATED
+    ): OsPortBundle {
+        // [DECISIÓN TÉCNICA]: El teléfono virtual publica textos y notificaciones de ejemplo; para no sobrescribir el portapapeles real ni llenar el escritorio de avisos, solo el enlace real usa esas integraciones. El audio sí es real en ambos modos porque solo suena al activar Music Mode.
+        val systemIntegration = linkMode == DesktopLinkMode.REAL_TCP
         return when (platform) {
             DesktopOsPlatform.GNU_LINUX -> OsPortBundle(
                 platform = DesktopOsPlatform.GNU_LINUX,
-                notificationPort = LinuxFreedesktopNotificationAdapter(),
-                clipboardPort = LinuxClipboardAdapter(),
+                notificationPort = if (systemIntegration) LinuxFreedesktopNotificationAdapter.forHost() else LinuxFreedesktopNotificationAdapter(),
+                clipboardPort = if (systemIntegration) LinuxClipboardAdapter.forHost() else LinuxClipboardAdapter(),
                 virtualDisplayPort = LinuxVirtualDisplayAdapter(),
                 virtualCameraMicPort = LinuxV4l2CameraMicAdapter(),
-                audioSinkPort = LinuxPipeWireAudioSinkAdapter()
+                audioSinkPort = LinuxPipeWireAudioSinkAdapter.forHost()
             )
             DesktopOsPlatform.WINDOWS -> OsPortBundle(
                 platform = DesktopOsPlatform.WINDOWS,
-                notificationPort = WindowsWinRtNotificationAdapter(),
-                clipboardPort = WindowsWin32ClipboardAdapter(),
+                notificationPort = if (systemIntegration) WindowsWinRtNotificationAdapter.forHost() else WindowsWinRtNotificationAdapter(),
+                clipboardPort = if (systemIntegration) WindowsWin32ClipboardAdapter.forHost() else WindowsWin32ClipboardAdapter(),
                 virtualDisplayPort = WindowsIddCxDisplayAdapter(),
                 virtualCameraMicPort = WindowsDirectShowCameraMicAdapter(),
-                audioSinkPort = WindowsWasapiAudioSinkAdapter()
+                audioSinkPort = WindowsWasapiAudioSinkAdapter.forHost()
             )
         }
     }
@@ -92,7 +98,7 @@ object OsAdapterFactory {
         rustCore: RustCoreBridgeContract = NativeCoreLoader.loadOrDummy(),
         linkMode: DesktopLinkMode = DesktopLinkMode.fromEnvironment()
     ): DesktopConnectionService {
-        val bundle = createPortBundle(platform)
+        val bundle = createPortBundle(platform, linkMode)
         val (transportPort, phoneEventPort) = createLinkPorts(linkMode, rustCore)
         return DesktopConnectionService(
             aggregate = DesktopSessionAggregate(),
