@@ -1,0 +1,102 @@
+# Integración continua de UPIICSA-Connect: core Rust, pruebas Kotlin (GNU/Linux y Windows) y compilación Android.
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, master]
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  core-rust:
+    name: Core Rust (fmt, clippy, pruebas, JNI Android)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core-rust
+      - name: Formato
+        run: cargo fmt --manifest-path core-rust/Cargo.toml --check
+      - name: Clippy
+        run: cargo clippy --manifest-path core-rust/Cargo.toml --all-targets -- -D warnings
+      - name: Pruebas
+        run: cargo test --manifest-path core-rust/Cargo.toml
+      - name: Clippy del puente JNI (objetivo Android)
+        run: cargo clippy --manifest-path core-rust/Cargo.toml --target aarch64-linux-android --release -- -D warnings
+      - name: Instalar cargo-ndk
+        run: cargo install cargo-ndk --locked
+      - name: Compilar para Android y verificar símbolos JNI
+        working-directory: core-rust
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          cargo ndk -t arm64-v8a -P 26 build --release
+          bash ../scripts/verificar-simbolos-jni.sh target/aarch64-linux-android/release/libupiicsa_core_rs.so
+
+  kotlin-linux:
+    name: Pruebas Kotlin (GNU/Linux) y APK debug
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core-rust
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Pruebas shared y escritorio
+        run: ./gradlew --no-configuration-cache :shared:desktopTest :desktopApp:buildRustCore :desktopApp:desktopTest
+      - name: APK debug, pruebas JVM y lint Android
+        run: ./gradlew --no-configuration-cache :androidApp:assembleDebug :androidApp:testDebugUnitTest :androidApp:lintDebug
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capturas-y-reportes-linux
+          path: |
+            desktopApp/build/screenshots/
+            desktopApp/build/reports/tests/
+            androidApp/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
+
+  kotlin-windows:
+    name: Pruebas Kotlin (Windows) con core nativo .dll
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core-rust
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Pruebas de escritorio (incluye portapapeles Win32, toasts y audio reales)
+        shell: pwsh
+        env:
+          UPIICSA_PRUEBAS_SO_REAL: "1"
+        run: ./gradlew.bat --no-configuration-cache :desktopApp:buildRustCore :desktopApp:desktopTest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capturas-y-reportes-windows
+          path: |
+            desktopApp/build/screenshots/
+            desktopApp/build/reports/tests/
+          if-no-files-found: ignore

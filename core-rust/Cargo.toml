@@ -1,6 +1,6 @@
 [package]
 name = "upiicsa_core_rs"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2021"
 description = "Core nativo de procesamiento de senales y multiplexado de transporte para UPIICSA-Connect (Todos los derechos reservados)."
 
@@ -9,3 +9,8 @@ name = "upiicsa_core_rs"
 crate-type = ["cdylib", "rlib", "staticlib"]
 
 [dependencies]
+
+# [DECISIÓN TÉCNICA]: El core sigue sin dependencias en escritorio; solo el binario Android
+# enlaza el crate `jni` para exponer el puente JNI tipado a JniRustCoreBridge.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = { version = "0.21", default-features = false }

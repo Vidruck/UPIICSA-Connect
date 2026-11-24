@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=UPIICSA-Connect
+GenericName=Convergencia PC - Android
+Comment=Notificaciones, portapapeles, Music Mode, cámara y monitor secundario entre PC y Android
+Exec=UPIICSA-Connect
+Icon=upiicsa-connect
+Categories=Network;Utility;
+Terminal=false

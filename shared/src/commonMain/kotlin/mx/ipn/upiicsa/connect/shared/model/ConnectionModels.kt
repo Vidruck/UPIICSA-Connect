@@ -4,10 +4,22 @@ package mx.ipn.upiicsa.connect.shared.model
  * Define los medios de transporte disponibles respetando la prioridad oficial del proyecto:
  * cable USB como primera opción y enlaces inalámbricos (Wi-Fi/Bluetooth) como segunda opción.
  */
-enum class TransportType(val priorityRank: Int, val displayLabel: String) {
-    USB_CABLE(priorityRank = 1, displayLabel = "Cable USB (Prioridad 1)"),
-    WIFI_LAN(priorityRank = 2, displayLabel = "Wi-Fi LAN (Prioridad 2)"),
-    BLUETOOTH(priorityRank = 2, displayLabel = "Bluetooth RFCOMM (Prioridad 2)")
+enum class TransportType(
+    val priorityRank: Int,
+    val displayLabel: String,
+    val shortLabel: String,
+    val wireId: Int
+) {
+    USB_CABLE(priorityRank = 1, displayLabel = "Cable USB (Prioridad 1)", shortLabel = "USB", wireId = 1),
+    WIFI_LAN(priorityRank = 2, displayLabel = "Wi-Fi LAN (Prioridad 2)", shortLabel = "Wi-Fi", wireId = 2),
+    BLUETOOTH(priorityRank = 2, displayLabel = "Bluetooth RFCOMM (Prioridad 2)", shortLabel = "Bluetooth", wireId = 3);
+
+    companion object {
+        /**
+         * Obtiene el medio correspondiente al identificador `TransportMedium` del core Rust, o `null` si es desconocido.
+         */
+        fun fromWireId(wireId: Int): TransportType? = entries.firstOrNull { it.wireId == wireId }
+    }
 }
 
 /**
@@ -29,12 +41,12 @@ enum class DesktopOsPlatform {
 /**
  * Representa el estado actual del ciclo de vida de la conexión entre dispositivos.
  */
-enum class ConnectionStatus {
-    DISCONNECTED,
-    SEARCHING,
-    PAIRING,
-    CONNECTED,
-    ERROR
+enum class ConnectionStatus(val displayLabel: String) {
+    DISCONNECTED("Desconectado"),
+    SEARCHING("Buscando"),
+    PAIRING("Emparejando"),
+    CONNECTED("Conectado"),
+    ERROR("Error")
 }
 
 /**
@@ -122,4 +134,54 @@ data class LinkFeatureToggles(
     val secondaryDisplay: SecondaryDisplayConfig = SecondaryDisplayConfig(),
     val remoteCameraMic: RemoteCameraMicConfig = RemoteCameraMicConfig(),
     val musicMode: MusicModeStreamConfig = MusicModeStreamConfig()
+)
+
+/**
+ * Clasifica las entradas de la bitácora de actividad visible en los paneles de control.
+ */
+enum class ActivityCategory(val displayLabel: String) {
+    CONNECTION("Conexión"),
+    NOTIFICATION("Notificación"),
+    CLIPBOARD("Portapapeles"),
+    MEDIA("Multimedia"),
+    DISPLAY("Pantalla"),
+    SYSTEM("Sistema")
+}
+
+/**
+ * Entrada inmutable de la bitácora de actividad de una sesión; la hora se formatea en la capa de presentación.
+ */
+data class ActivityLogEntry(
+    val epochMillis: Long,
+    val category: ActivityCategory,
+    val message: String
+)
+
+/**
+ * Telemetría instantánea del enlace activo mostrada en los tableros (latencia, calidad y tramas).
+ */
+data class LinkTelemetry(
+    val latencyMs: Int = 0,
+    val signalQualityPercent: Int = 0,
+    val framesSent: Long = 0,
+    val framesReceived: Long = 0
+)
+
+/**
+ * Telemetría instantánea del flujo multimedia (niveles normalizados 0..1 y cuadros recibidos).
+ */
+data class MediaTelemetry(
+    val musicLevel: Float = 0f,
+    val microphoneLevel: Float = 0f,
+    val cameraFramesReceived: Long = 0,
+    val displayFramesSent: Long = 0
+)
+
+/**
+ * Elemento del historial del portapapeles compartido indicando su origen (ordenador o teléfono).
+ */
+data class ClipboardHistoryEntry(
+    val text: String,
+    val fromMobile: Boolean,
+    val epochMillis: Long
 )

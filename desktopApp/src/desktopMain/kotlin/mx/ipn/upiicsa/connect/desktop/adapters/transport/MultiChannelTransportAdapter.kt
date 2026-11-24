@@ -1,16 +1,20 @@
 package mx.ipn.upiicsa.connect.desktop.adapters.transport
 
+import kotlinx.coroutines.delay
 import mx.ipn.upiicsa.connect.desktop.ports.outbound.DeviceTransportOutboundPort
 import mx.ipn.upiicsa.connect.shared.model.ConnectionDirection
 import mx.ipn.upiicsa.connect.shared.model.RemoteDeviceDescriptor
 import mx.ipn.upiicsa.connect.shared.model.TransportType
+import mx.ipn.upiicsa.connect.shared.protocol.FrameValidation
 import mx.ipn.upiicsa.connect.shared.protocol.RustCoreBridgeContract
+import mx.ipn.upiicsa.connect.shared.protocol.ServiceChannel
 
 /**
  * Adaptador de transporte que negocia canales físicos priorizando cable USB sobre Wi-Fi LAN y Bluetooth RFCOMM.
  */
 class MultiChannelTransportAdapter(
-    private val rustCore: RustCoreBridgeContract
+    private val rustCore: RustCoreBridgeContract,
+    private val discoveryDelayMs: Long = 450L
 ) : DeviceTransportOutboundPort {
 
     private var activeDevice: RemoteDeviceDescriptor? = null
@@ -18,9 +22,17 @@ class MultiChannelTransportAdapter(
     private var sequenceCounter: Long = 1L
 
     /**
+     * Cantidad de bytes serializados enviados en la sesión actual (telemetría de diagnóstico).
+     */
+    var bytesSent: Long = 0L
+        private set
+
+    /**
      * Descubre dispositivos Android compatibles ordenando primero los accesibles por cable USB.
      */
     override suspend fun discoverDevices(): List<RemoteDeviceDescriptor> {
+        // [DUMMY-PRUEBAS]: Retardo artificial que simula el barrido de adb devices, mDNS y Bluetooth para mostrar el estado "Buscando".
+        delay(discoveryDelayMs)
         // [DUMMY-PRUEBAS]: Catálogo hardcodeado de dispositivos Android para pruebas sin cable ADB/mDNS en vivo.
         return listOf(
             RemoteDeviceDescriptor(
@@ -71,6 +83,8 @@ class MultiChannelTransportAdapter(
         // [DUMMY-PRUEBAS]: Registro en memoria del enlace activo simulando handshake AOAv2/TLS/RFCOMM.
         activeDevice = device
         activeTransport = selected
+        sequenceCounter = 1L
+        bytesSent = 0L
         return true
     }
 
@@ -83,13 +97,19 @@ class MultiChannelTransportAdapter(
     }
 
     /**
-     * Calcula la suma de verificación CRC32 vía contrato Rust y despacha la trama por el medio activo.
+     * Serializa la carga útil en una trama del core Rust (cabecera + CRC32) y la despacha por el medio activo.
      */
-    override suspend fun sendChannelPayload(channelId: Int, payload: ByteArray): Boolean {
-        if (activeDevice == null || activeTransport == null) {
+    override suspend fun sendChannelPayload(channel: ServiceChannel, payload: ByteArray): Boolean {
+        val transport = activeTransport ?: return false
+        if (activeDevice == null) {
             return false
         }
-        val crc32 = rustCore.computeFrameChecksum(payload, channelId, sequenceCounter++)
-        return crc32 >= 0L
+        val frame = rustCore.encodeFrame(transport, channel, sequenceCounter++, payload)
+        // [DUMMY-PRUEBAS]: Validación en bucle local (loopback) de la trama serializada en lugar de escribirla al socket/endpoint USB.
+        val accepted = rustCore.validateWireFrame(frame) == FrameValidation.Valid(channel)
+        if (accepted) {
+            bytesSent += frame.size
+        }
+        return accepted
     }
 }

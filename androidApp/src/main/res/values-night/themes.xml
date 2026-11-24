@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.UpiicsaConnect" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/fondo_oscuro</item>
+        <item name="android:statusBarColor">@color/verde_upiicsa_oscuro</item>
+        <item name="android:navigationBarColor">@color/fondo_oscuro</item>
+        <item name="android:colorAccent">@color/verde_upiicsa</item>
+    </style>
+</resources>

@@ -1,110 +1,113 @@
 package mx.ipn.upiicsa.connect.android.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.BrightnessAuto
+import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.DesktopWindows
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import mx.ipn.upiicsa.connect.android.viewmodel.AndroidConnectionUiState
 import mx.ipn.upiicsa.connect.android.viewmodel.AndroidConnectionViewModel
-import mx.ipn.upiicsa.connect.shared.model.ConnectionDirection
-import mx.ipn.upiicsa.connect.shared.model.NotificationResolutionAction
-import mx.ipn.upiicsa.connect.shared.model.PhoneNotificationItem
+import mx.ipn.upiicsa.connect.android.viewmodel.AndroidTab
 import mx.ipn.upiicsa.connect.shared.model.ThemePreference
-import mx.ipn.upiicsa.connect.shared.model.TransportType
+import mx.ipn.upiicsa.connect.shared.ui.components.ConnectionStatusBadge
+import mx.ipn.upiicsa.connect.shared.ui.components.UpiicsaBrandMark
 import mx.ipn.upiicsa.connect.shared.ui.theme.UpiicsaConnectTheme
+
+/**
+ * Icono de cada pestaña de navegación (solo capa View).
+ */
+private fun AndroidTab.icon(): ImageVector = when (this) {
+    AndroidTab.ENLACE -> Icons.Rounded.Link
+    AndroidTab.AVISOS -> Icons.Rounded.Notifications
+    AndroidTab.PORTAPAPELES -> Icons.Rounded.ContentPaste
+    AndroidTab.MULTIMEDIA -> Icons.Rounded.GraphicEq
+    AndroidTab.PANTALLA -> Icons.Rounded.DesktopWindows
+}
 
 /**
  * Vista principal Compose en Android (capa View MVVM) que observa el StateFlow sin contener lógica de negocio.
  */
 @Composable
-fun AndroidConnectionPanelScreen(
-    viewModel: AndroidConnectionViewModel = remember { AndroidConnectionViewModel.createDefault() }
-) {
-    val uiState by viewModel.uiState.collectAsState()
-    var clipboardDraft by remember { mutableStateOf("") }
+fun AndroidConnectionPanelScreen(viewModel: AndroidConnectionViewModel) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     UpiicsaConnectTheme(themePreference = uiState.themePreference) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
-        ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item {
-                    EncabezadoMovilUpiicsa(
-                        uiState = uiState,
-                        onThemeSelect = viewModel::setThemePreference
-                    )
-                }
-
-                item {
-                    PanelEnlaceOrdenador(
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                EncabezadoMovilUpiicsa(
+                    uiState = uiState,
+                    onCycleTheme = { viewModel.setThemePreference(uiState.themePreference.next()) }
+                )
+            },
+            bottomBar = {
+                BarraPestanas(
+                    selected = uiState.selectedTab,
+                    pendingNotifications = uiState.pendingNotificationCount,
+                    onSelect = viewModel::selectTab
+                )
+            }
+        ) { padding ->
+            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                when (uiState.selectedTab) {
+                    AndroidTab.ENLACE -> EnlaceTab(
                         uiState = uiState,
                         onDirectionSelect = viewModel::setConnectionDirection,
                         onTransportSelect = viewModel::setPreferredTransport,
                         onConnect = viewModel::connectToDesktop,
-                        onDisconnect = viewModel::disconnectDesktop
+                        onDisconnect = viewModel::disconnectDesktop,
+                        onRescan = viewModel::cargarEstadoInicial,
+                        onRealLinkToggle = viewModel::setRealLinkEnabled
                     )
-                }
-
-                item {
-                    PanelOpcionesServiciosMovil(
+                    AndroidTab.AVISOS -> AvisosTab(
                         uiState = uiState,
-                        clipboardDraft = clipboardDraft,
-                        onClipboardDraftChange = { clipboardDraft = it },
-                        onSendClipboard = { viewModel.syncClipboard(clipboardDraft) },
-                        onToggleNotifications = viewModel::toggleNotificationBridge,
-                        onToggleMusicMode = viewModel::toggleMusicMode,
-                        onToggleCameraMic = { enabled -> viewModel.toggleCameraAndMic(enabled, useBackCamera = false) },
-                        onToggleSecondaryDisplay = viewModel::toggleSecondaryDisplay
+                        onToggleBridge = viewModel::toggleNotificationBridge,
+                        onSimulateResolution = viewModel::simulateResolveFromDesktop
                     )
-                }
-
-                item {
-                    Text(
-                        text = "Notificaciones Compartidas (Resolvibles en PC)",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                    AndroidTab.PORTAPAPELES -> PortapapelesTab(
+                        uiState = uiState,
+                        onToggleSync = viewModel::toggleClipboardSync,
+                        onSend = viewModel::syncClipboard,
+                        onSendSystemClipboard = viewModel::sendSystemClipboardToDesktop
                     )
-                }
-
-                items(uiState.notifications, key = { it.notificationId }) { notif ->
-                    TarjetaNotificacionMovil(
-                        notification = notif,
-                        onSimulateDesktopReply = { id ->
-                            viewModel.simulateResolveFromDesktop(
-                                NotificationResolutionAction.QuickReply(id, "Recibido desde mi PC")
-                            )
-                        }
+                    AndroidTab.MULTIMEDIA -> MultimediaTab(
+                        uiState = uiState,
+                        onToggleMusic = viewModel::toggleMusicMode,
+                        onToggleCameraMic = viewModel::toggleCameraAndMic
+                    )
+                    AndroidTab.PANTALLA -> PantallaTab(
+                        uiState = uiState,
+                        onToggleDisplay = viewModel::toggleSecondaryDisplay
                     )
                 }
             }
@@ -113,218 +116,78 @@ fun AndroidConnectionPanelScreen(
 }
 
 /**
- * Muestra la cabecera institucional UPIICSA-IPN y las opciones de modo claro/oscuro en el teléfono.
+ * Encabezado con emblema, estado del enlace y selector cíclico de tema.
  */
 @Composable
-private fun EncabezadoMovilUpiicsa(
-    uiState: AndroidConnectionUiState,
-    onThemeSelect: (ThemePreference) -> Unit
-) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = "UPIICSA-Connect | Móvil Android",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-            Text(
-                text = "${uiState.status.name}: ${uiState.statusMessage}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                ThemePreference.entries.forEach { pref ->
-                    FilterChip(
-                        selected = uiState.themePreference == pref,
-                        onClick = { onThemeSelect(pref) },
-                        label = { Text(pref.displayLabel) }
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Muestra las opciones para conectar del móvil al ordenador o aceptar desde el ordenador, con prioridad USB -> Wi-Fi/BT.
- */
-@Composable
-private fun PanelEnlaceOrdenador(
-    uiState: AndroidConnectionUiState,
-    onDirectionSelect: (ConnectionDirection) -> Unit,
-    onTransportSelect: (TransportType) -> Unit,
-    onConnect: (mx.ipn.upiicsa.connect.shared.model.RemoteDeviceDescriptor) -> Unit,
-    onDisconnect: () -> Unit
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(
-                text = "Conexión Móvil <-> Ordenador",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                ConnectionDirection.entries.forEach { dir ->
-                    FilterChip(
-                        selected = uiState.direction == dir,
-                        onClick = { onDirectionSelect(dir) },
-                        label = { Text(dir.displayLabel) }
-                    )
-                }
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                TransportType.entries.forEach { transport ->
-                    FilterChip(
-                        selected = uiState.preferredTransport == transport,
-                        onClick = { onTransportSelect(transport) },
-                        label = { Text(transport.displayLabel) }
-                    )
-                }
-            }
-
-            uiState.availableDesktops.forEach { desktop ->
-                val isLinked = uiState.connectedDesktop?.deviceId == desktop.deviceId
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(desktop.deviceName, fontWeight = FontWeight.SemiBold)
-                        Text(desktop.modelName, style = MaterialTheme.typography.bodySmall)
-                    }
-                    if (isLinked) {
-                        OutlinedButton(onClick = onDisconnect) {
-                            Text("Desconectar")
-                        }
-                    } else {
-                        Button(onClick = { onConnect(desktop) }) {
-                            Text("Enlazar")
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Renderiza los interruptores para habilitar notificaciones, portapapeles, Music Mode, webcam/mic y monitor secundario.
- */
-@Composable
-private fun PanelOpcionesServiciosMovil(
-    uiState: AndroidConnectionUiState,
-    clipboardDraft: String,
-    onClipboardDraftChange: (String) -> Unit,
-    onSendClipboard: () -> Unit,
-    onToggleNotifications: (Boolean) -> Unit,
-    onToggleMusicMode: (Boolean) -> Unit,
-    onToggleCameraMic: (Boolean) -> Unit,
-    onToggleSecondaryDisplay: (Boolean) -> Unit
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(
-                text = "Panel de Opciones y Servicios",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-
+private fun EncabezadoMovilUpiicsa(uiState: AndroidConnectionUiState, onCycleTheme: () -> Unit) {
+    Surface(color = MaterialTheme.colorScheme.surface) {
+        Column {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                OutlinedTextField(
-                    value = clipboardDraft,
-                    onValueChange = onClipboardDraftChange,
-                    label = { Text("Enviar portapapeles a PC") },
-                    modifier = Modifier.weight(1f)
-                )
-                Button(onClick = onSendClipboard) {
-                    Text("Enviar")
+                UpiicsaBrandMark(size = 36.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("UPIICSA-Connect", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = uiState.statusMessage,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
+                ConnectionStatusBadge(uiState.status)
+                IconButton(onClick = onCycleTheme) {
+                    Icon(
+                        imageVector = when (uiState.themePreference) {
+                            ThemePreference.SYSTEM_AUTO -> Icons.Rounded.BrightnessAuto
+                            ThemePreference.LIGHT -> Icons.Rounded.LightMode
+                            ThemePreference.DARK -> Icons.Rounded.DarkMode
+                        },
+                        contentDescription = "Cambiar tema: ${uiState.themePreference.displayLabel}",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        }
+    }
+}
 
-            InterruptorOpcionMovil(
-                titulo = "Compartir y resolver notificaciones",
-                checked = uiState.featureToggles.syncNotifications,
-                onCheckedChange = onToggleNotifications
-            )
-
-            InterruptorOpcionMovil(
-                titulo = "Music Mode (Audio móvil -> Tarjeta de PC)",
-                checked = uiState.featureToggles.musicMode.enabled,
-                onCheckedChange = onToggleMusicMode
-            )
-
-            InterruptorOpcionMovil(
-                titulo = "Cámara y micrófono para videollamadas PC",
-                checked = uiState.featureToggles.remoteCameraMic.cameraEnabled,
-                onCheckedChange = onToggleCameraMic
-            )
-
-            InterruptorOpcionMovil(
-                titulo = "Usar dispositivo como Monitor Secundario",
-                checked = uiState.featureToggles.secondaryDisplay.enabled,
-                onCheckedChange = onToggleSecondaryDisplay
+/**
+ * Barra inferior de pestañas con insignia de notificaciones pendientes.
+ */
+@Composable
+private fun BarraPestanas(selected: AndroidTab, pendingNotifications: Int, onSelect: (AndroidTab) -> Unit) {
+    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+        AndroidTab.entries.forEach { tab ->
+            NavigationBarItem(
+                selected = tab == selected,
+                onClick = { onSelect(tab) },
+                icon = {
+                    if (tab == AndroidTab.AVISOS && pendingNotifications > 0) {
+                        BadgedBox(badge = { Badge { Text(pendingNotifications.toString()) } }) {
+                            Icon(tab.icon(), contentDescription = tab.label)
+                        }
+                    } else {
+                        Icon(tab.icon(), contentDescription = tab.label)
+                    }
+                },
+                label = { Text(tab.label, style = MaterialTheme.typography.labelSmall, maxLines = 1) },
+                colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primaryContainer)
             )
         }
     }
 }
 
 /**
- * Componente visual compacto para activar o desactivar una capacidad del panel móvil.
+ * Siguiente preferencia de tema en el ciclo Automático -> Claro -> Oscuro.
  */
-@Composable
-private fun InterruptorOpcionMovil(
-    titulo: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(titulo, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
-    }
-}
-
-/**
- * Muestra el estado de una notificación compartida y permite simular su resolución remota desde el ordenador.
- */
-@Composable
-private fun TarjetaNotificacionMovil(
-    notification: PhoneNotificationItem,
-    onSimulateDesktopReply: (String) -> Unit
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                text = "${notification.appName} • ${notification.senderTitle}",
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.tertiary
-            )
-            Text(notification.messageBody)
-            if (notification.isResolved) {
-                Text(
-                    text = notification.resolutionSummary.orEmpty(),
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold
-                )
-            } else {
-                OutlinedButton(onClick = { onSimulateDesktopReply(notification.notificationId) }) {
-                    Text("Simular resolución desde PC")
-                }
-            }
-        }
-    }
+private fun ThemePreference.next(): ThemePreference = when (this) {
+    ThemePreference.SYSTEM_AUTO -> ThemePreference.LIGHT
+    ThemePreference.LIGHT -> ThemePreference.DARK
+    ThemePreference.DARK -> ThemePreference.SYSTEM_AUTO
 }
