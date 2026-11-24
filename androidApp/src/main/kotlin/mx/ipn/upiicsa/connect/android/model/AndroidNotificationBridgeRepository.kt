@@ -7,9 +7,9 @@ import mx.ipn.upiicsa.connect.shared.model.NotificationResolutionAction
 import mx.ipn.upiicsa.connect.shared.model.PhoneNotificationItem
 
 /**
- * Repositorio de la capa Model (MVVM) para capturar notificaciones de Android y ejecutar su resolución remota.
+ * Repositorio de la capa Model (MVVM) con notificaciones simuladas del teléfono, usado mientras el enlace real está apagado.
  */
-class AndroidNotificationBridgeRepository {
+class AndroidNotificationBridgeRepository : NotificationBridgeSource {
 
     private val cachedNotifications = mutableListOf(
         // [DUMMY-PRUEBAS]: Notificaciones iniciales de prueba en lugar de leer StatusBarNotification desde NotificationListenerService.
@@ -36,14 +36,14 @@ class AndroidNotificationBridgeRepository {
     /**
      * Recupera las notificaciones activas capturadas en el dispositivo Android para espejarlas hacia la PC.
      */
-    suspend fun loadActiveNotifications(): List<PhoneNotificationItem> {
+    override suspend fun loadActiveNotifications(): List<PhoneNotificationItem> {
         return cachedNotifications.toList()
     }
 
     /**
      * Aplica en Android una acción de resolución recibida desde el ordenador (RemoteInput, leída o descartar).
      */
-    suspend fun resolveNotificationFromDesktop(action: NotificationResolutionAction): List<PhoneNotificationItem> {
+    override suspend fun resolveNotificationFromDesktop(action: NotificationResolutionAction): List<PhoneNotificationItem> {
         // [DUMMY-PRUEBAS]: Actualiza lista local simulando disparo de PendingIntent y RemoteInput sobre el sistema Android.
         val updated = cachedNotifications.map { item ->
             when (action) {
@@ -78,7 +78,7 @@ class AndroidNotificationBridgeRepository {
     /**
      * Flujo de notificaciones nuevas capturadas en el teléfono mientras el puente está activo.
      */
-    fun incomingNotifications(): Flow<PhoneNotificationItem> = flow {
+    override fun incomingNotifications(): Flow<PhoneNotificationItem> = flow {
         // [DUMMY-PRUEBAS]: Notificaciones periódicas simuladas en lugar de onNotificationPosted de NotificationListenerService.
         val catalog = listOf(
             Triple("Telegram", "org.telegram.messenger", "Club de Robótica" to "Reunión hoy en el edificio de Ingeniería."),

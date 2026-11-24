@@ -77,6 +77,7 @@ Por omisión ambas apps usan el teléfono/ordenador simulado. Para probar el enl
 2. Inicie el escritorio en modo real: `UPIICSA_ENLACE=real ./gradlew :desktopApp:run` (o `-Dupiicsa.enlace=real`). En **Ajustes** se indica el modo activo.
 3. En el escritorio pulse **Buscar** y **Conectar** sobre el teléfono detectado: se crea el túnel `adb reverse tcp:47800 tcp:47800` y el servidor espera 30 s.
 4. En Android, active **Enlace real por cable USB** (pestaña Enlace) y pulse **Conectar**. Ambos equipos muestran el mismo PIN.
+5. Para espejar las notificaciones reales, en la pestaña **Avisos** pulse **Abrir ajustes de acceso** y conceda el «Acceso a notificaciones» a UPIICSA-Connect.
 
 El servidor escucha únicamente en `127.0.0.1`; el enlace por Wi-Fi se habilitará junto con mTLS (v0.4.0).
 
