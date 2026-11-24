@@ -208,6 +208,27 @@ class TcpLinkLoopbackTest {
     }
 
     /**
+     * Verifica que un teléfono con otra versión de protocolo sea desconectado con un motivo legible.
+     */
+    @Test
+    fun saludoConOtraVersionDeProtocoloCierraElEnlace() = runBlocking {
+        withTimeout(20_000) {
+            val port = session.listen()
+            scope.launch { service.runPhoneEventLoop() }
+            val desktopConnect = scope.async {
+                service.connectToDevice(TELEFONO_LOOPBACK, TransportType.USB_CABLE, ConnectionDirection.MOBILE_TO_DESKTOP)
+            }
+            val phone = connectPhone(port)
+            phone.send(ChannelMessage.HandshakeHello(ConnectionDirection.MOBILE_TO_DESKTOP, "Teléfono antiguo", 0, protocolVersion = 99))
+            assertEquals(ConnectionStatus.CONNECTED, desktopConnect.await().status)
+
+            val closed = service.sessionState.first { it.status == ConnectionStatus.DISCONNECTED }
+            assertTrue(closed.activityLog.any { it.message.contains("Versión de protocolo incompatible (teléfono v99") })
+            phone.close()
+        }
+    }
+
+    /**
      * Verifica que sin teléfono la conexión falle tras el tiempo de espera en lugar de bloquearse.
      */
     @Test

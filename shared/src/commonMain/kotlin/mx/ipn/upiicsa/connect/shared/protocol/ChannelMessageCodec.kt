@@ -56,12 +56,13 @@ sealed class ChannelMessage {
      */
     data class MusicModeCommand(val enabled: Boolean, val gainMilli: Int) : ChannelMessage()
     /**
-     * Saludo inicial de enlace con dirección, nombre del equipo y PIN.
+     * Saludo inicial de enlace con dirección, nombre del equipo, PIN y versión del formato de mensajes.
      */
     data class HandshakeHello(
         val direction: ConnectionDirection,
         val deviceName: String,
-        val pairingPin: Int
+        val pairingPin: Int,
+        val protocolVersion: Int = ChannelMessageCodec.PROTOCOL_VERSION
     ) : ChannelMessage()
     /**
      * Latido periódico con marca de tiempo para medir latencia.
@@ -114,6 +115,12 @@ class ChannelProtocolException(val kind: ProtocolErrorKind) : Exception("Mensaje
  * Códec binario en Kotlin puro compatible byte a byte con core-rust/src/protocol.rs (textos con prefijo u16 big-endian).
  */
 object ChannelMessageCodec {
+
+    /**
+     * Versión del formato de mensajes (igual a `PROTOCOL_VERSION` de protocol.rs); ambos extremos deben coincidir.
+     */
+    const val PROTOCOL_VERSION = 1
+
 
     private const val TAG_NOTIFICATION_REPLY = 0x10
     private const val TAG_NOTIFICATION_MARK_READ = 0x11
@@ -175,6 +182,7 @@ object ChannelMessageCodec {
                 out.byte(if (message.direction == ConnectionDirection.DESKTOP_TO_MOBILE) 1 else 2)
                 out.text(message.deviceName)
                 out.u32(message.pairingPin.toLong())
+                out.u16(message.protocolVersion.coerceIn(0, 0xFFFF))
             }
             is ChannelMessage.Heartbeat -> {
                 out.byte(TAG_HEARTBEAT)
@@ -215,7 +223,7 @@ object ChannelMessageCodec {
                     2 -> ConnectionDirection.MOBILE_TO_DESKTOP
                     else -> throw ChannelProtocolException(ProtocolErrorKind.INVALID_ENUM_VALUE)
                 }
-                ChannelMessage.HandshakeHello(direction, reader.text(), reader.u32().toInt())
+                ChannelMessage.HandshakeHello(direction, reader.text(), reader.u32().toInt(), reader.u16())
             }
             TAG_HEARTBEAT -> ChannelMessage.Heartbeat(reader.u64())
             else -> throw ChannelProtocolException(ProtocolErrorKind.UNKNOWN_TAG)

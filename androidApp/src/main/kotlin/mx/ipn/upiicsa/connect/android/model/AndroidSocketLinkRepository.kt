@@ -11,6 +11,7 @@ import mx.ipn.upiicsa.connect.shared.model.PhoneNotificationItem
 import mx.ipn.upiicsa.connect.shared.model.RemoteDeviceDescriptor
 import mx.ipn.upiicsa.connect.shared.model.TransportType
 import mx.ipn.upiicsa.connect.shared.protocol.ChannelMessage
+import mx.ipn.upiicsa.connect.shared.protocol.ChannelMessageCodec
 import mx.ipn.upiicsa.connect.shared.protocol.ContentOrigin
 import mx.ipn.upiicsa.connect.shared.protocol.RustCoreBridgeContract
 import java.io.IOException
@@ -88,7 +89,8 @@ class AndroidSocketLinkRepository(
     }
 
     /**
-     * Flujo de eventos del ordenador; devuelve cada latido como eco para que la PC mida la latencia.
+     * Flujo de eventos del ordenador; devuelve cada latido como eco para que la PC mida la latencia. Un saludo con otra
+     * versión de protocolo cierra el enlace con el motivo correspondiente.
      */
     fun events(): Flow<DesktopLinkEvent> = flow {
         val link = channel
@@ -96,13 +98,21 @@ class AndroidSocketLinkRepository(
             emit(DesktopLinkEvent.Closed("Sin conexión con el ordenador"))
             return@flow
         }
+        var closeReason = "El ordenador cerró la conexión"
         link.incoming().collect { message ->
             when (message) {
                 is ChannelMessage.Heartbeat -> {
                     sendQuietly(message)
                     emit(DesktopLinkEvent.Heartbeat)
                 }
-                is ChannelMessage.HandshakeHello -> emit(DesktopLinkEvent.Hello(message.deviceName, message.pairingPin))
+                is ChannelMessage.HandshakeHello ->
+                    if (message.protocolVersion == ChannelMessageCodec.PROTOCOL_VERSION) {
+                        emit(DesktopLinkEvent.Hello(message.deviceName, message.pairingPin))
+                    } else {
+                        closeReason = "Versión de protocolo incompatible (ordenador v${message.protocolVersion}, " +
+                            "teléfono v${ChannelMessageCodec.PROTOCOL_VERSION}); actualice ambas apps"
+                        link.close()
+                    }
                 is ChannelMessage.ClipboardText ->
                     if (message.origin == ContentOrigin.DESKTOP) emit(DesktopLinkEvent.ClipboardFromDesktop(message.text))
                 is ChannelMessage.NotificationReply ->
@@ -115,7 +125,7 @@ class AndroidSocketLinkRepository(
             }
         }
         channel = null
-        emit(DesktopLinkEvent.Closed("El ordenador cerró la conexión"))
+        emit(DesktopLinkEvent.Closed(closeReason))
     }
 
     /**
