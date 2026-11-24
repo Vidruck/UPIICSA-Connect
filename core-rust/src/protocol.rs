@@ -32,6 +32,14 @@ pub enum ChannelMessage {
     NotificationDismiss {
         notification_id: String,
     },
+    NotificationPosted {
+        notification_id: String,
+        app_name: String,
+        package_name: String,
+        sender_title: String,
+        message_body: String,
+        supports_inline_reply: bool,
+    },
     ClipboardText {
         origin: ContentOrigin,
         text: String,
@@ -72,6 +80,7 @@ mod tag {
     pub const NOTIFICATION_REPLY: u8 = 0x10;
     pub const NOTIFICATION_MARK_READ: u8 = 0x11;
     pub const NOTIFICATION_DISMISS: u8 = 0x12;
+    pub const NOTIFICATION_POSTED: u8 = 0x13;
     pub const CLIPBOARD_TEXT: u8 = 0x20;
     pub const CAMERA_MIC_COMMAND: u8 = 0x30;
     pub const MUSIC_MODE_COMMAND: u8 = 0x40;
@@ -85,7 +94,8 @@ impl ChannelMessage {
         match self {
             Self::NotificationReply { .. }
             | Self::NotificationMarkRead { .. }
-            | Self::NotificationDismiss { .. } => ServiceChannel::NotificationResolution,
+            | Self::NotificationDismiss { .. }
+            | Self::NotificationPosted { .. } => ServiceChannel::NotificationResolution,
             Self::ClipboardText { .. } => ServiceChannel::ClipboardSync,
             Self::CameraMicCommand { .. } => ServiceChannel::WebcamMicStream,
             Self::MusicModeCommand { .. } => ServiceChannel::MusicModeAudio,
@@ -112,6 +122,22 @@ impl ChannelMessage {
             Self::NotificationDismiss { notification_id } => {
                 out.push(tag::NOTIFICATION_DISMISS);
                 write_text(&mut out, notification_id)?;
+            }
+            Self::NotificationPosted {
+                notification_id,
+                app_name,
+                package_name,
+                sender_title,
+                message_body,
+                supports_inline_reply,
+            } => {
+                out.push(tag::NOTIFICATION_POSTED);
+                write_text(&mut out, notification_id)?;
+                write_text(&mut out, app_name)?;
+                write_text(&mut out, package_name)?;
+                write_text(&mut out, sender_title)?;
+                write_text(&mut out, message_body)?;
+                out.push(u8::from(*supports_inline_reply));
             }
             Self::ClipboardText { origin, text } => {
                 out.push(tag::CLIPBOARD_TEXT);
@@ -168,6 +194,14 @@ impl ChannelMessage {
             },
             tag::NOTIFICATION_DISMISS => Self::NotificationDismiss {
                 notification_id: reader.text()?,
+            },
+            tag::NOTIFICATION_POSTED => Self::NotificationPosted {
+                notification_id: reader.text()?,
+                app_name: reader.text()?,
+                package_name: reader.text()?,
+                sender_title: reader.text()?,
+                message_body: reader.text()?,
+                supports_inline_reply: reader.flag()?,
             },
             tag::CLIPBOARD_TEXT => {
                 let origin = match reader.u8()? {
@@ -317,6 +351,14 @@ mod tests {
             ChannelMessage::NotificationDismiss {
                 notification_id: "notif-3".into(),
             },
+            ChannelMessage::NotificationPosted {
+                notification_id: "notif-4".into(),
+                app_name: "WhatsApp".into(),
+                package_name: "com.whatsapp".into(),
+                sender_title: "Equipo UPIICSA".into(),
+                message_body: "¿Llegas a la reunión?".into(),
+                supports_inline_reply: true,
+            },
             ChannelMessage::ClipboardText {
                 origin: ContentOrigin::Mobile,
                 text: "Código: ñandú ✓".into(),
@@ -362,6 +404,23 @@ mod tests {
         .encode()
         .unwrap();
         assert_eq!(musica, vec![0x40, 1, 0x04, 0x7E]);
+        let aviso = ChannelMessage::NotificationPosted {
+            notification_id: "n1".into(),
+            app_name: "Wa".into(),
+            package_name: "w".into(),
+            sender_title: "Al".into(),
+            message_body: "Hi".into(),
+            supports_inline_reply: true,
+        }
+        .encode()
+        .unwrap();
+        assert_eq!(
+            aviso,
+            vec![
+                0x13, 0, 2, b'n', b'1', 0, 2, b'W', b'a', 0, 1, b'w', 0, 2, b'A', b'l', 0, 2, b'H',
+                b'i', 1
+            ]
+        );
     }
 
     /// Verifica el rechazo de cargas útiles malformadas.
