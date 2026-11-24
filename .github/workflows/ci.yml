@@ -87,8 +87,10 @@ jobs:
         with:
           workspaces: core-rust
       - uses: gradle/actions/setup-gradle@v4
-      - name: Pruebas de escritorio
+      - name: Pruebas de escritorio (incluye portapapeles Win32, toasts y audio reales)
         shell: pwsh
+        env:
+          UPIICSA_PRUEBAS_SO_REAL: "1"
         run: ./gradlew.bat --no-configuration-cache :desktopApp:buildRustCore :desktopApp:desktopTest
       - uses: actions/upload-artifact@v4
         if: always()

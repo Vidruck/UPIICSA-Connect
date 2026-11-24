@@ -33,19 +33,19 @@ flowchart TB
         APP --> POUT
 
         subgraph AdaptadoresLinux["Adaptadores GNU/Linux (5 Clases Independientes)"]
-            L1["LinuxFreedesktopNotificationAdapter (DBus)"]
-            L2["LinuxClipboardAdapter (Wayland/X11)"]
+            L1["LinuxFreedesktopNotificationAdapter (D-Bus vía gdbus)"]
+            L2["LinuxClipboardAdapter (wl-clipboard/xclip/xsel/AWT)"]
             L3["LinuxVirtualDisplayAdapter (EVDI/PipeWire)"]
             L4["LinuxV4l2CameraMicAdapter (v4l2loopback)"]
-            L5["LinuxPipeWireAudioSinkAdapter (PipeWire/ALSA)"]
+            L5["LinuxPipeWireAudioSinkAdapter (Java Sound: ALSA/PipeWire)"]
         end
 
         subgraph AdaptadoresWindows["Adaptadores Windows (5 Clases Independientes)"]
-            W1["WindowsWinRtNotificationAdapter (WinRT Toast)"]
-            W2["WindowsWin32ClipboardAdapter (User32)"]
+            W1["WindowsWinRtNotificationAdapter (Toast WinRT vía PowerShell)"]
+            W2["WindowsWin32ClipboardAdapter (user32.dll vía JNA)"]
             W3["WindowsIddCxDisplayAdapter (IddCx)"]
             W4["WindowsDirectShowCameraMicAdapter (DirectShow/WASAPI)"]
-            W5["WindowsWasapiAudioSinkAdapter (WASAPI)"]
+            W5["WindowsWasapiAudioSinkAdapter (Java Sound: DirectSound/WASAPI)"]
         end
 
         TAD["MultiChannelTransportAdapter"]
@@ -106,11 +106,11 @@ Cada capacidad del sistema operativo define un **Puerto de Salida (`Outbound Por
 
 | Puerto de Salida (`ports/outbound/OsAndTransportPorts.kt`) | Adaptador GNU/Linux (`adapters/os/linux/`) | Adaptador Windows (`adapters/os/windows/`) | Responsabilidad Única |
 | :--- | :--- | :--- | :--- |
-| `OsNotificationOutboundPort` | `LinuxFreedesktopNotificationAdapter` | `WindowsWinRtNotificationAdapter` | Mostrar notificaciones del teléfono y capturar acciones/respuestas rápidas del usuario en el escritorio. |
-| `OsClipboardOutboundPort` | `LinuxClipboardAdapter` | `WindowsWin32ClipboardAdapter` | Leer y escribir texto en el portapapeles del sistema operativo anfitrión. |
+| `OsNotificationOutboundPort` | `LinuxFreedesktopNotificationAdapter` (`gdbus` → `org.freedesktop.Notifications`) | `WindowsWinRtNotificationAdapter` (toast WinRT con PowerShell `-EncodedCommand`) | Mostrar notificaciones del teléfono en el escritorio y retirarlas al resolverlas desde la PC. |
+| `OsClipboardOutboundPort` | `LinuxClipboardAdapter` (`wl-clipboard`, `xclip`, `xsel` o AWT) | `WindowsWin32ClipboardAdapter` (`Win32ClipboardApi`: `user32.dll`/`kernel32.dll` vía JNA) | Leer y escribir texto en el portapapeles del sistema operativo anfitrión. |
 | `OsVirtualDisplayOutboundPort` | `LinuxVirtualDisplayAdapter` | `WindowsIddCxDisplayAdapter` | Crear, redimensionar y capturar frames del monitor virtual secundario enviado a Android. |
 | `OsVirtualCameraMicOutboundPort` | `LinuxV4l2CameraMicAdapter` | `WindowsDirectShowCameraMicAdapter` | Inyectar video y audio provenientes de la cámara/micrófono del móvil en dispositivos virtuales. |
-| `OsAudioSinkOutboundPort` | `LinuxPipeWireAudioSinkAdapter` | `WindowsWasapiAudioSinkAdapter` | Reproducir en la tarjeta de sonido del PC el flujo de audio de *Music Mode*. |
+| `OsAudioSinkOutboundPort` | `LinuxPipeWireAudioSinkAdapter` (prefiere el dispositivo ALSA `default` que enruta por PipeWire) | `WindowsWasapiAudioSinkAdapter` (dispositivo predeterminado) | Reproducir en la tarjeta de sonido del PC el flujo de audio de *Music Mode*. |
 | `DeviceTransportOutboundPort` | `MultiChannelTransportAdapter` (simulado) / `TcpLinkTransportAdapter` (real) | `MultiChannelTransportAdapter` (simulado) / `TcpLinkTransportAdapter` (real) | Negociar el enlace priorizando **Cable USB (1ª opción)** y serializar cada carga útil como `UpiicsaFrame`. |
 | `PhoneEventStreamOutboundPort` | `DummyPhoneEventStreamAdapter` (simulado) / `SocketPhoneEventStreamAdapter` (real) | `DummyPhoneEventStreamAdapter` (simulado) / `SocketPhoneEventStreamAdapter` (real) | Entregar como `Flow` los eventos del teléfono (notificaciones, portapapeles, PCM, micrófono, cámara, vsync y latidos). |
 
@@ -119,6 +119,7 @@ Cada capacidad del sistema operativo define un **Puerto de Salida (`Outbound Por
 2. **Puertos (`ports/inbound/` y `ports/outbound/`):** Interfaces Kotlin puras. `DesktopUseCases` agrupa los 7 casos de uso consumidos por la interfaz (conexión, notificaciones, portapapeles, monitor, cámara/micrófono, Music Mode y observación de sesión).
 3. **Aplicación (`application/DesktopConnectionService.kt`):** Implementa `DesktopUseCases`; publica el estado como `StateFlow`, codifica cada orden con `ChannelMessageCodec` y procesa los `PhoneEvent` respetando los interruptores de servicio. Las mutaciones del agregado se serializan con un `Mutex`.
 4. **Adaptadores (`adapters/`):** `os/linux`, `os/windows`, `transport` (simulado y `transport/tcp` real), `process` (`ProcessRunner`: ejecución de programas externos sin shell), `simulation` (simulador del teléfono) y `nativecore` (puente JNA hacia `libupiicsa_core_rs`, con respaldo automático a `DummyRustCoreBridge`).
+   - **Integración real con el S.O. (IA-009):** cada adaptador de portapapeles, notificaciones y audio tiene una fábrica `forHost()` que detecta lo disponible (sesión Wayland/X11, `gdbus` y bus de sesión, `user32.dll`, tarjeta de sonido) y, si falta, conserva los datos en memoria. `OsAdapterFactory.createPortBundle(platform, linkMode)` usa el portapapeles y las notificaciones reales solo con el enlace real, para que el teléfono virtual no sobrescriba el portapapeles del usuario. El código neutral compartido vive fuera de `os/linux` y `os/windows`: `adapters/audio/JavaSoundPcmWriter` (hilo de reproducción con cola acotada que descarta bloques atrasados), `adapters/os/AwtClipboardAccess` y `adapters/process/ExecutableLocator`. El servicio de aplicación vigila el portapapeles cada 1 s (`runClipboardWatchLoop`) y envía al teléfono solo lo copiado durante la sesión.
    - **Enlace real (`transport/tcp/`):** `TcpLinkSession` (servidor TCP en `127.0.0.1:47800`, un teléfono a la vez) es compartido por `TcpLinkTransportAdapter` (descubrimiento con `adb devices -l`, túnel `adb reverse`, envío de tramas) y `SocketPhoneEventStreamAdapter` (mensajes -> `PhoneEvent`, latidos con eco para medir latencia y `PhoneEvent.LinkClosed` al vencer los latidos o cerrarse el socket). `OsAdapterFactory.createLinkPorts` elige el par simulado o real según `DesktopLinkMode`.
 5. **Presentación (`ui/`):** `DesktopPanelController` traduce gestos en llamadas a los puertos de entrada y mantiene estado local de navegación y borradores; las pantallas (`ui/screens/`) solo observan estado.
 6. **Raíz de composición (`bootstrap/DesktopApplication.kt`):** Único punto que conoce `OsAdapterFactory`; crea la ventana, el ícono y la bandeja del sistema.
@@ -228,7 +229,7 @@ Definido de forma centralizada en `shared/src/commonMain/kotlin/mx/ipn/upiicsa/c
 | :--- | :--- |
 | `cargo test --manifest-path core-rust/Cargo.toml` | 24 pruebas del core (transporte, protocolo, reensamblado, supervisor, jitter, PIN y FFI). |
 | `./gradlew :shared:desktopTest` | Códec y paridad de `DummyRustCoreBridge` con los vectores de Rust. |
-| `./gradlew :desktopApp:buildRustCore :desktopApp:desktopTest` | Servicio de aplicación, puente JNA contra el binario real, reglas de arquitectura y capturas PNG en `desktopApp/build/screenshots/`. |
+| `./gradlew :desktopApp:buildRustCore :desktopApp:desktopTest` | Servicio de aplicación, puente JNA contra el binario real, enlace TCP en bucle local, adaptadores del S.O. con procesos y salidas de audio falsos, reglas de arquitectura y capturas PNG en `desktopApp/build/screenshots/`. Con `UPIICSA_PRUEBAS_SO_REAL=1` también prueba el portapapeles, las notificaciones y el audio reales del anfitrión (el trabajo de Windows del CI lo activa). |
 | `./gradlew :androidApp:assembleDebug` | Compilación completa del APK debug (sin emulador). Con `-Pupiicsa.buildRustCore=true` compila el core con `cargo ndk` para 4 ABI e incluye `libupiicsa_core_rs.so`. |
 | `bash scripts/verificar-simbolos-jni.sh <lib.so>` | Comprueba que cada `external fun` de `JniRustCoreBridge` tenga su símbolo `Java_…` exportado. |
 

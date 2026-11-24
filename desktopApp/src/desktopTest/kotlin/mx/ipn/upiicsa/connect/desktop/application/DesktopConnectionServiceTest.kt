@@ -1,5 +1,7 @@
 package mx.ipn.upiicsa.connect.desktop.application
 
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import mx.ipn.upiicsa.connect.desktop.adapters.simulation.DummyPhoneEventStreamAdapter
 import mx.ipn.upiicsa.connect.desktop.domain.DesktopSessionAggregate
@@ -230,6 +232,31 @@ class DesktopConnectionServiceTest {
         assertNull(state.pairingPin)
         assertTrue(!os.displayActive && !os.sinkOpen && !transport.connected)
         assertNotNull(state.activityLog.lastOrNull())
+    }
+
+    /**
+     * Verifica que lo copiado en la PC durante la sesión llegue al teléfono, sin reenviar lo copiado antes de conectar
+     * ni el texto recibido desde el teléfono.
+     */
+    @Test
+    fun vigilanciaDelPortapapelesEnviaSoloCopiasNuevas() = runTest {
+        os.clipboard = "copiado antes de conectar"
+        service.connectToDevice(TELEFONO_USB, null, ConnectionDirection.DESKTOP_TO_MOBILE)
+        val watcher = launch { service.runClipboardWatchLoop() }
+        advanceTimeBy(1_500)
+        os.clipboard = "copiado en la PC"
+        advanceTimeBy(1_000)
+        service.processPhoneEvent(PhoneEvent.ClipboardFromPhone("desde Android"))
+        advanceTimeBy(3_000)
+        service.setClipboardSync(false)
+        os.clipboard = "con sincronización pausada"
+        advanceTimeBy(3_000)
+        watcher.cancel()
+
+        val clipboardMessages = transport.sent
+            .map { (_, payload) -> ChannelMessageCodec.decode(payload) }
+            .filterIsInstance<ChannelMessage.ClipboardText>()
+        assertEquals(listOf(ChannelMessage.ClipboardText(ContentOrigin.DESKTOP, "copiado en la PC")), clipboardMessages)
     }
 
     private companion object {

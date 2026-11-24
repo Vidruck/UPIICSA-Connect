@@ -151,6 +151,12 @@ interface SessionObservationUseCase {
      * Escucha de forma continua los eventos del teléfono mientras haya una sesión activa (suspende indefinidamente).
      */
     suspend fun runPhoneEventLoop()
+
+    /**
+     * Envía al teléfono el texto que el usuario copie en el ordenador mientras el portapapeles compartido esté activo
+     * (suspende indefinidamente).
+     */
+    suspend fun runClipboardWatchLoop()
 }
 
 /**

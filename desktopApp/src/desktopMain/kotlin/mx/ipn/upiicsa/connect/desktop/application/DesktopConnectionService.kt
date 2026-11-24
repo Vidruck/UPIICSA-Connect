@@ -1,6 +1,7 @@
 package mx.ipn.upiicsa.connect.desktop.application
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -53,7 +54,8 @@ class DesktopConnectionService(
     private val phoneEventPort: PhoneEventStreamOutboundPort,
     private val localDeviceId: String = "pc-upiicsa-escritorio",
     private val linkModeLabel: String = "Simulado (teléfono virtual)",
-    private val clock: () -> Long = System::currentTimeMillis
+    private val clock: () -> Long = System::currentTimeMillis,
+    private val clipboardPollIntervalMs: Long = 1_000L
 ) : DesktopUseCases {
 
     private val mutex = Mutex()
@@ -391,6 +393,29 @@ class DesktopConnectionService(
                 if (device == null || transport == null) emptyFlow() else phoneEventPort.events(device, transport)
             }
             .collect { event -> processPhoneEvent(event) }
+    }
+
+    /**
+     * Vigila el portapapeles del ordenador mientras haya sesión conectada con portapapeles compartido y envía al teléfono
+     * cada texto nuevo copiado en la PC (suspende indefinidamente).
+     */
+    override suspend fun runClipboardWatchLoop() {
+        var lastSeen: String? = null
+        while (true) {
+            delay(clipboardPollIntervalMs)
+            val state = aggregate.snapshot()
+            if (state.status != ConnectionStatus.CONNECTED || !state.featureToggles.syncClipboard) {
+                lastSeen = null
+                continue
+            }
+            val text = clipboardPort.readClipboardText()
+            // [DECISIÓN TÉCNICA]: La primera lectura de cada sesión solo fija la referencia; lo copiado antes de conectar no se envía al teléfono.
+            val changed = lastSeen != null && text != lastSeen
+            lastSeen = text
+            if (changed && text.isNotBlank() && text != state.sharedClipboardText) {
+                pushClipboardText(text)
+            }
+        }
     }
 
     /**

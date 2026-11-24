@@ -84,10 +84,11 @@ class DesktopPanelController(
     val coreInfo: CoreRuntimeInfo = useCases.coreRuntimeInfo()
 
     /**
-     * Inicia la escucha de eventos del teléfono y la primera búsqueda de dispositivos.
+     * Inicia la escucha de eventos del teléfono, la vigilancia del portapapeles y la primera búsqueda de dispositivos.
      */
     fun start() {
         scope.launch { useCases.runPhoneEventLoop() }
+        scope.launch { useCases.runClipboardWatchLoop() }
         refreshDevices()
     }
 
