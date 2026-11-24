@@ -67,7 +67,7 @@ Verifique la integridad con `sha256sum -c SHA256SUMS.txt`.
 3. Crear y empujar una etiqueta firmada sobre `dev`: `git tag -s vX.Y.Z -m "..." && git push origin vX.Y.Z`.
 4. `.github/workflows/release.yml` compila en GNU/Linux, Windows y Android, firma el APK con los secretos `UPIICSA_*` del repositorio y publica la liberación (las etiquetas con sufijo `-alpha`/`-beta` se marcan como *pre-release*).
 
-Para probar la compilación de liberación sin publicar, ejecute el flujo "Liberación" manualmente desde la pestaña *Actions* (`gh workflow run release.yml --ref <rama>`).
+Sin publicar, el mismo flujo compila todos los artefactos en cada Pull Request que modifique el empaquetado (`packaging/`, `build.gradle.kts` de las apps, `core-rust/Cargo.toml` o el propio flujo) y puede ejecutarse manualmente desde la pestaña *Actions* una vez que esté en la rama por omisión.
 
 ## Compilación, Ejecución y Pruebas
 

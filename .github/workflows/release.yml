@@ -1,11 +1,20 @@
 # Liberación de UPIICSA-Connect: instaladores de escritorio (GNU/Linux y Windows) y APK firmado de Android.
 # - Al empujar una etiqueta v* se compilan todos los artefactos y se publica la liberación en GitHub.
-# - Ejecutado manualmente (workflow_dispatch) solo compila y sube los artefactos al run, sin publicar.
+# - En Pull Requests que tocan el empaquetado, o ejecutado manualmente, solo compila y sube los
+#   artefactos al run, sin publicar.
 name: Liberación
 
 on:
   push:
     tags: ["v*"]
+  pull_request:
+    branches: [dev, master]
+    paths:
+      - ".github/workflows/release.yml"
+      - "desktopApp/build.gradle.kts"
+      - "androidApp/build.gradle.kts"
+      - "core-rust/Cargo.toml"
+      - "packaging/**"
   workflow_dispatch:
 
 permissions:
