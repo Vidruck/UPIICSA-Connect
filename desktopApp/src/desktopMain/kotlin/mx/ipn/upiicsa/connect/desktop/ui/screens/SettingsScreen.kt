@@ -79,6 +79,12 @@ fun SettingsScreen(controller: DesktopPanelController, local: DesktopPanelLocalS
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Text(
+                text = "Enlace con el teléfono: ${core.linkModeLabel}. Para usar el enlace real inicie con -Dupiicsa.enlace=real " +
+                    "o UPIICSA_ENLACE=real, conecte el teléfono por USB con depuración activada y pulse Conectar en la app Android.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
         SectionCard(title = "Acerca de", icon = Icons.Rounded.Info) {
             UpiicsaWordmark(subtitle = "Escritorio ${controller.platformLabel} · Versión 0.1.0-alpha")
