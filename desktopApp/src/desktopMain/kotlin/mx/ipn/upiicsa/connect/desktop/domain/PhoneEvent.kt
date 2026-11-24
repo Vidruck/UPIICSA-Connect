@@ -41,4 +41,9 @@ sealed class PhoneEvent {
      * Señal de sincronía vertical del monitor secundario: el dispositivo está listo para recibir el siguiente cuadro.
      */
     data class DisplayVsync(val frameIndex: Long) : PhoneEvent()
+
+    /**
+     * El enlace físico con el teléfono se cerró (desconexión del par o latidos vencidos); la sesión debe finalizar.
+     */
+    data class LinkClosed(val reason: String) : PhoneEvent()
 }

@@ -27,6 +27,18 @@ sealed class ChannelMessage {
      * Orden de descartar una notificación.
      */
     data class NotificationDismiss(val notificationId: String) : ChannelMessage()
+
+    /**
+     * Notificación publicada en el teléfono que se espeja hacia el ordenador.
+     */
+    data class NotificationPosted(
+        val notificationId: String,
+        val appName: String,
+        val packageName: String,
+        val senderTitle: String,
+        val messageBody: String,
+        val supportsInlineReply: Boolean
+    ) : ChannelMessage()
     /**
      * Texto del portapapeles compartido con su origen.
      */
@@ -61,7 +73,7 @@ sealed class ChannelMessage {
      */
     val channel: ServiceChannel
         get() = when (this) {
-            is NotificationReply, is NotificationMarkRead, is NotificationDismiss -> ServiceChannel.NOTIFICATION_RESOLUTION
+            is NotificationReply, is NotificationMarkRead, is NotificationDismiss, is NotificationPosted -> ServiceChannel.NOTIFICATION_RESOLUTION
             is ClipboardText -> ServiceChannel.CLIPBOARD_SYNC
             is CameraMicCommand -> ServiceChannel.WEBCAM_MIC_STREAM
             is MusicModeCommand -> ServiceChannel.MUSIC_MODE_AUDIO
@@ -106,6 +118,7 @@ object ChannelMessageCodec {
     private const val TAG_NOTIFICATION_REPLY = 0x10
     private const val TAG_NOTIFICATION_MARK_READ = 0x11
     private const val TAG_NOTIFICATION_DISMISS = 0x12
+    private const val TAG_NOTIFICATION_POSTED = 0x13
     private const val TAG_CLIPBOARD_TEXT = 0x20
     private const val TAG_CAMERA_MIC_COMMAND = 0x30
     private const val TAG_MUSIC_MODE_COMMAND = 0x40
@@ -131,6 +144,15 @@ object ChannelMessageCodec {
             is ChannelMessage.NotificationDismiss -> {
                 out.byte(TAG_NOTIFICATION_DISMISS)
                 out.text(message.notificationId)
+            }
+            is ChannelMessage.NotificationPosted -> {
+                out.byte(TAG_NOTIFICATION_POSTED)
+                out.text(message.notificationId)
+                out.text(message.appName)
+                out.text(message.packageName)
+                out.text(message.senderTitle)
+                out.text(message.messageBody)
+                out.flag(message.supportsInlineReply)
             }
             is ChannelMessage.ClipboardText -> {
                 out.byte(TAG_CLIPBOARD_TEXT)
@@ -174,6 +196,9 @@ object ChannelMessageCodec {
             TAG_NOTIFICATION_REPLY -> ChannelMessage.NotificationReply(reader.text(), reader.text())
             TAG_NOTIFICATION_MARK_READ -> ChannelMessage.NotificationMarkRead(reader.text())
             TAG_NOTIFICATION_DISMISS -> ChannelMessage.NotificationDismiss(reader.text())
+            TAG_NOTIFICATION_POSTED -> ChannelMessage.NotificationPosted(
+                reader.text(), reader.text(), reader.text(), reader.text(), reader.text(), reader.flag()
+            )
             TAG_CLIPBOARD_TEXT -> {
                 val origin = when (reader.u8()) {
                     1 -> ContentOrigin.DESKTOP

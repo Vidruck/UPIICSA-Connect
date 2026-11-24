@@ -119,11 +119,12 @@ interface MusicModeUseCase {
 }
 
 /**
- * Información del núcleo nativo en uso (versión y si está respaldado por el binario Rust o por la simulación Kotlin).
+ * Información del núcleo nativo en uso (versión, si está respaldado por el binario Rust o por la simulación Kotlin) y modo de enlace con el teléfono.
  */
 data class CoreRuntimeInfo(
     val version: String,
-    val nativeBacked: Boolean
+    val nativeBacked: Boolean,
+    val linkModeLabel: String
 )
 
 /**

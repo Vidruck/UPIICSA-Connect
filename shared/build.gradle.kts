@@ -30,6 +30,21 @@ kotlin {
                 implementation(kotlin("test"))
             }
         }
+        // [DECISIÓN TÉCNICA]: Conjunto intermedio JVM (escritorio + Android) para compartir el canal de sockets java.net sin duplicarlo.
+        val jvmCommonMain by creating {
+            dependsOn(commonMain)
+        }
+        val desktopMain by getting {
+            dependsOn(jvmCommonMain)
+        }
+        val androidMain by getting {
+            dependsOn(jvmCommonMain)
+        }
+        val desktopTest by getting {
+            dependencies {
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+            }
+        }
     }
 }
 

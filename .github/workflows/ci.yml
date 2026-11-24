@@ -61,8 +61,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Pruebas shared y escritorio
         run: ./gradlew --no-configuration-cache :shared:desktopTest :desktopApp:buildRustCore :desktopApp:desktopTest
-      - name: APK debug y lint Android
-        run: ./gradlew --no-configuration-cache :androidApp:assembleDebug :androidApp:lintDebug
+      - name: APK debug, pruebas JVM y lint Android
+        run: ./gradlew --no-configuration-cache :androidApp:assembleDebug :androidApp:testDebugUnitTest :androidApp:lintDebug
       - uses: actions/upload-artifact@v4
         if: always()
         with:

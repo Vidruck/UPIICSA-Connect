@@ -12,7 +12,13 @@ import mx.ipn.upiicsa.connect.desktop.adapters.os.windows.WindowsWasapiAudioSink
 import mx.ipn.upiicsa.connect.desktop.adapters.os.windows.WindowsWin32ClipboardAdapter
 import mx.ipn.upiicsa.connect.desktop.adapters.os.windows.WindowsWinRtNotificationAdapter
 import mx.ipn.upiicsa.connect.desktop.adapters.simulation.DummyPhoneEventStreamAdapter
+import mx.ipn.upiicsa.connect.desktop.adapters.process.SystemProcessRunner
+import mx.ipn.upiicsa.connect.desktop.adapters.transport.DesktopLinkMode
 import mx.ipn.upiicsa.connect.desktop.adapters.transport.MultiChannelTransportAdapter
+import mx.ipn.upiicsa.connect.desktop.adapters.transport.tcp.AdbDeviceBridge
+import mx.ipn.upiicsa.connect.desktop.adapters.transport.tcp.SocketPhoneEventStreamAdapter
+import mx.ipn.upiicsa.connect.desktop.adapters.transport.tcp.TcpLinkSession
+import mx.ipn.upiicsa.connect.desktop.adapters.transport.tcp.TcpLinkTransportAdapter
 import mx.ipn.upiicsa.connect.desktop.application.DesktopConnectionService
 import mx.ipn.upiicsa.connect.desktop.domain.DesktopSessionAggregate
 import mx.ipn.upiicsa.connect.desktop.ports.outbound.OsAudioSinkOutboundPort
@@ -20,6 +26,8 @@ import mx.ipn.upiicsa.connect.desktop.ports.outbound.OsClipboardOutboundPort
 import mx.ipn.upiicsa.connect.desktop.ports.outbound.OsNotificationOutboundPort
 import mx.ipn.upiicsa.connect.desktop.ports.outbound.OsVirtualCameraMicOutboundPort
 import mx.ipn.upiicsa.connect.desktop.ports.outbound.OsVirtualDisplayOutboundPort
+import mx.ipn.upiicsa.connect.desktop.ports.outbound.DeviceTransportOutboundPort
+import mx.ipn.upiicsa.connect.desktop.ports.outbound.PhoneEventStreamOutboundPort
 import mx.ipn.upiicsa.connect.shared.model.DesktopOsPlatform
 import mx.ipn.upiicsa.connect.shared.protocol.RustCoreBridgeContract
 
@@ -81,20 +89,37 @@ object OsAdapterFactory {
      */
     fun createDesktopService(
         platform: DesktopOsPlatform = detectHostPlatform(),
-        rustCore: RustCoreBridgeContract = NativeCoreLoader.loadOrDummy()
+        rustCore: RustCoreBridgeContract = NativeCoreLoader.loadOrDummy(),
+        linkMode: DesktopLinkMode = DesktopLinkMode.fromEnvironment()
     ): DesktopConnectionService {
         val bundle = createPortBundle(platform)
+        val (transportPort, phoneEventPort) = createLinkPorts(linkMode, rustCore)
         return DesktopConnectionService(
             aggregate = DesktopSessionAggregate(),
             rustCore = rustCore,
-            transportPort = MultiChannelTransportAdapter(rustCore),
+            transportPort = transportPort,
             notificationPort = bundle.notificationPort,
             clipboardPort = bundle.clipboardPort,
             virtualDisplayPort = bundle.virtualDisplayPort,
             virtualCameraMicPort = bundle.virtualCameraMicPort,
             audioSinkPort = bundle.audioSinkPort,
-            // [DECISIÓN TÉCNICA]: Mientras no exista el socket real del teléfono (Fase 3) los eventos provienen del simulador.
-            phoneEventPort = DummyPhoneEventStreamAdapter()
+            phoneEventPort = phoneEventPort,
+            linkModeLabel = linkMode.displayLabel
         )
+    }
+
+    /**
+     * Construye el par transporte / flujo de eventos del teléfono según el modo de enlace elegido.
+     */
+    fun createLinkPorts(
+        linkMode: DesktopLinkMode,
+        rustCore: RustCoreBridgeContract
+    ): Pair<DeviceTransportOutboundPort, PhoneEventStreamOutboundPort> = when (linkMode) {
+        // [DECISIÓN TÉCNICA]: El simulador sigue siendo el modo por omisión hasta validar el enlace real con dispositivos físicos.
+        DesktopLinkMode.SIMULATED -> MultiChannelTransportAdapter(rustCore) to DummyPhoneEventStreamAdapter()
+        DesktopLinkMode.REAL_TCP -> {
+            val session = TcpLinkSession(rustCore)
+            TcpLinkTransportAdapter(session, AdbDeviceBridge(SystemProcessRunner())) to SocketPhoneEventStreamAdapter(session)
+        }
     }
 }

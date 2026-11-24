@@ -111,14 +111,15 @@ Cada capacidad del sistema operativo define un **Puerto de Salida (`Outbound Por
 | `OsVirtualDisplayOutboundPort` | `LinuxVirtualDisplayAdapter` | `WindowsIddCxDisplayAdapter` | Crear, redimensionar y capturar frames del monitor virtual secundario enviado a Android. |
 | `OsVirtualCameraMicOutboundPort` | `LinuxV4l2CameraMicAdapter` | `WindowsDirectShowCameraMicAdapter` | Inyectar video y audio provenientes de la cámara/micrófono del móvil en dispositivos virtuales. |
 | `OsAudioSinkOutboundPort` | `LinuxPipeWireAudioSinkAdapter` | `WindowsWasapiAudioSinkAdapter` | Reproducir en la tarjeta de sonido del PC el flujo de audio de *Music Mode*. |
-| `DeviceTransportOutboundPort` | `MultiChannelTransportAdapter` (común) | `MultiChannelTransportAdapter` (común) | Negociar el enlace priorizando **Cable USB (1ª opción)** y serializar cada carga útil como `UpiicsaFrame`. |
-| `PhoneEventStreamOutboundPort` | `DummyPhoneEventStreamAdapter` (común, simulado) | `DummyPhoneEventStreamAdapter` (común, simulado) | Entregar como `Flow` los eventos del teléfono (notificaciones, portapapeles, PCM, micrófono, cámara, vsync y latidos). |
+| `DeviceTransportOutboundPort` | `MultiChannelTransportAdapter` (simulado) / `TcpLinkTransportAdapter` (real) | `MultiChannelTransportAdapter` (simulado) / `TcpLinkTransportAdapter` (real) | Negociar el enlace priorizando **Cable USB (1ª opción)** y serializar cada carga útil como `UpiicsaFrame`. |
+| `PhoneEventStreamOutboundPort` | `DummyPhoneEventStreamAdapter` (simulado) / `SocketPhoneEventStreamAdapter` (real) | `DummyPhoneEventStreamAdapter` (simulado) / `SocketPhoneEventStreamAdapter` (real) | Entregar como `Flow` los eventos del teléfono (notificaciones, portapapeles, PCM, micrófono, cámara, vsync y latidos). |
 
 ### Capas Internas del Hexágono de Escritorio
 1. **Dominio (`domain/`):** `DesktopSessionAggregate` (invariantes de prioridad, transiciones de estado, bitácora, historial de portapapeles y telemetría) y `PhoneEvent` (eventos entrantes). No depende de UI, adaptadores, puertos ni Compose.
 2. **Puertos (`ports/inbound/` y `ports/outbound/`):** Interfaces Kotlin puras. `DesktopUseCases` agrupa los 7 casos de uso consumidos por la interfaz (conexión, notificaciones, portapapeles, monitor, cámara/micrófono, Music Mode y observación de sesión).
 3. **Aplicación (`application/DesktopConnectionService.kt`):** Implementa `DesktopUseCases`; publica el estado como `StateFlow`, codifica cada orden con `ChannelMessageCodec` y procesa los `PhoneEvent` respetando los interruptores de servicio. Las mutaciones del agregado se serializan con un `Mutex`.
-4. **Adaptadores (`adapters/`):** `os/linux`, `os/windows`, `transport`, `simulation` (simulador del teléfono) y `nativecore` (puente JNA hacia `libupiicsa_core_rs`, con respaldo automático a `DummyRustCoreBridge`).
+4. **Adaptadores (`adapters/`):** `os/linux`, `os/windows`, `transport` (simulado y `transport/tcp` real), `process` (`ProcessRunner`: ejecución de programas externos sin shell), `simulation` (simulador del teléfono) y `nativecore` (puente JNA hacia `libupiicsa_core_rs`, con respaldo automático a `DummyRustCoreBridge`).
+   - **Enlace real (`transport/tcp/`):** `TcpLinkSession` (servidor TCP en `127.0.0.1:47800`, un teléfono a la vez) es compartido por `TcpLinkTransportAdapter` (descubrimiento con `adb devices -l`, túnel `adb reverse`, envío de tramas) y `SocketPhoneEventStreamAdapter` (mensajes -> `PhoneEvent`, latidos con eco para medir latencia y `PhoneEvent.LinkClosed` al vencer los latidos o cerrarse el socket). `OsAdapterFactory.createLinkPorts` elige el par simulado o real según `DesktopLinkMode`.
 5. **Presentación (`ui/`):** `DesktopPanelController` traduce gestos en llamadas a los puertos de entrada y mantiene estado local de navegación y borradores; las pantallas (`ui/screens/`) solo observan estado.
 6. **Raíz de composición (`bootstrap/DesktopApplication.kt`):** Único punto que conoce `OsAdapterFactory`; crea la ventana, el ícono y la bandeja del sistema.
 
@@ -133,6 +134,7 @@ Las reglas anteriores se verifican automáticamente con `ArchitectureRulesTest` 
    - `AndroidPairingRepository`: deriva el PIN de emparejamiento con `RustCoreBridgeContract.derivePairingPin`.
    - `AndroidNotificationBridgeRepository`: notificaciones activas, resolución recibida desde la PC y flujo de notificaciones nuevas.
    - `AndroidMediaStreamRepository`: Music Mode (cada bloque PCM pasa por el DSP del core), micrófono, cámara y receptor de monitor secundario.
+   - `AndroidSocketLinkRepository`: enlace real con el ordenador (`127.0.0.1:47800` vía `adb reverse`) sobre `FrameSocketChannel`; devuelve los latidos como eco, traduce mensajes a `DesktopLinkEvent` y espeja notificaciones y portapapeles.
    - `nativecore/JniRustCoreBridge`: implementación de `RustCoreBridgeContract` sobre `libupiicsa_core_rs.so` (métodos `external` enlazados con `core-rust/src/jni_bridge.rs`, que delega en las mismas funciones de `ffi_bridge.rs`). `AndroidNativeCoreLoader.loadOrDummy()` la carga con `System.loadLibrary` y recurre a `DummyRustCoreBridge` si el APK no incluye el binario (compilaciones debug sin NDK). La fábrica del ViewModel inyecta el resultado en los repositorios, por lo que ViewModel y vistas siguen dependiendo solo del contrato.
 2. **ViewModel (`viewmodel/AndroidConnectionViewModel.kt`):**
    - Expone un único `StateFlow<AndroidConnectionUiState>` (incluye pestaña activa, PIN, telemetría, niveles y bitácora).
@@ -186,11 +188,16 @@ Primer byte = etiqueta; textos UTF-8 con prefijo `u16`; booleanos estrictos 0/1;
 | Etiqueta | Mensaje | Canal |
 | :---: | :--- | :---: |
 | `0x10` / `0x11` / `0x12` | Respuesta, Marcar leída, Descartar notificación | 1 |
+| `0x13` | Notificación publicada en el teléfono (id, app, paquete, remitente, cuerpo, admite respuesta) | 1 |
 | `0x20` | Texto de portapapeles + origen | 2 |
 | `0x30` | Cámara / micrófono / cámara trasera | 4 |
 | `0x40` | Music Mode + ganancia en milésimas | 5 |
 | `0x50` | Saludo de enlace (dirección, nombre, PIN) | 6 |
 | `0x60` | Latido con marca de tiempo | 6 |
+
+### 5.3 Enlace TCP (`shared/src/jvmCommonMain/.../link/FrameSocketChannel.kt`)
+
+Código compartido por escritorio y Android (conjunto intermedio `jvmCommonMain`). Cada mensaje se serializa con el core (`encodeFrame`) y las lecturas parciales se reensamblan con `FrameReassembler` (paridad Kotlin de `stream_decoder.rs`, validación CRC32 delegada al core). El ordenador envía `Heartbeat` cada 1 s, el teléfono lo devuelve y la latencia es la mitad del viaje redondo; sin tráfico durante 3 s el enlace se cierra. Cancelar la recolección de `incoming()` cierra el socket para liberar el hilo lector. El servidor escucha solo en loopback hasta contar con mTLS (v0.4.0).
 
 La compatibilidad Kotlin ↔ Rust se garantiza con vectores de referencia idénticos en `core-rust/src/lib.rs`, `core-rust/src/protocol.rs` y `shared/src/commonTest/`.
 

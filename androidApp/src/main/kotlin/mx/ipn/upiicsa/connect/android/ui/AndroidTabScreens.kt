@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Cameraswitch
 import androidx.compose.material.icons.rounded.Computer
+import androidx.compose.material.icons.rounded.Usb
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.DesktopWindows
 import androidx.compose.material.icons.rounded.History
@@ -114,7 +115,8 @@ fun EnlaceTab(
     onTransportSelect: (TransportType) -> Unit,
     onConnect: (RemoteDeviceDescriptor) -> Unit,
     onDisconnect: () -> Unit,
-    onRescan: () -> Unit
+    onRescan: () -> Unit,
+    onRealLinkToggle: (Boolean) -> Unit
 ) {
     val tokens = UpiicsaThemeTokens.extendedColors
     TabColumn {
@@ -180,6 +182,13 @@ fun EnlaceTab(
         }
 
         SectionCard(title = "Preferencias de enlace", subtitle = "USB siempre tiene prioridad automática", icon = Icons.Rounded.Route) {
+            ServiceToggleRow(
+                icon = Icons.Rounded.Usb,
+                title = "Enlace real por cable USB",
+                subtitle = "Requiere depuración USB y el escritorio iniciado con -Dupiicsa.enlace=real (adb reverse)",
+                checked = uiState.useRealLink,
+                onCheckedChange = onRealLinkToggle
+            )
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)

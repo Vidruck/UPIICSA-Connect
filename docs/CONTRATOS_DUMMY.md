@@ -42,6 +42,8 @@ En cumplimiento de las reglas de transparencia del proyecto, todo contrato tempo
 | `desktopApp/.../adapters/os/windows/WindowsDirectShowCameraMicAdapter.kt` | `enableVirtualDevices`, `pushVideoFrame`, `pushMicAudio` | Simula la cámara virtual DirectShow/MediaFoundation y el micrófono virtual en memoria. | Fase 5: Fuente virtual MediaFoundation Frame Server y controlador de audio virtual. |
 | `desktopApp/.../adapters/os/windows/WindowsWasapiAudioSinkAdapter.kt` | `openMusicModeSink`, `writePcmSamples` | Simula el flujo de audio hacia WASAPI. | Fase 5: Cliente WASAPI nativo de baja latencia (`IAudioRenderClient`). |
 
+> **Modo de enlace (IA-008):** `MultiChannelTransportAdapter` y `DummyPhoneEventStreamAdapter` solo se usan en el modo simulado (valor por omisión). Con `-Dupiicsa.enlace=real` / `UPIICSA_ENLACE=real` el escritorio usa los adaptadores reales `TcpLinkTransportAdapter` + `SocketPhoneEventStreamAdapter` (sin datos simulados). En Android, `AndroidDeviceRepository.scanAvailableDesktops` / `connectToDesktop` / `linkTelemetryStream` / `clipboardFromDesktopStream` solo se usan con el interruptor "Enlace real" apagado; con el enlace real se usa `AndroidSocketLinkRepository`. Las notificaciones de `AndroidNotificationBridgeRepository` siguen siendo simuladas, pero ahora viajan al ordenador por el enlace real.
+
 > **Retirados en IA-006:** el bloque PCM sintético de `DesktopConnectionService.toggleMusicMode` y `crearNotificacionesDummy` de la interfaz fueron eliminados; ahora esos datos provienen exclusivamente de `DummyPhoneEventStreamAdapter` (capa de adaptadores), de modo que el servicio de aplicación y la UI no contienen datos simulados.
 
 ---

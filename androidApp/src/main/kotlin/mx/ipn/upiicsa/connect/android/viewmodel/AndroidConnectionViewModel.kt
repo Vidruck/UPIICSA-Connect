@@ -15,6 +15,8 @@ import mx.ipn.upiicsa.connect.android.model.AndroidDeviceRepository
 import mx.ipn.upiicsa.connect.android.model.AndroidMediaStreamRepository
 import mx.ipn.upiicsa.connect.android.model.AndroidNotificationBridgeRepository
 import mx.ipn.upiicsa.connect.android.model.AndroidPairingRepository
+import mx.ipn.upiicsa.connect.android.model.AndroidSocketLinkRepository
+import mx.ipn.upiicsa.connect.android.model.DesktopLinkEvent
 import mx.ipn.upiicsa.connect.android.model.nativecore.AndroidNativeCoreLoader
 import mx.ipn.upiicsa.connect.shared.model.ActivityCategory
 import mx.ipn.upiicsa.connect.shared.model.ActivityLogEntry
@@ -64,6 +66,7 @@ data class AndroidConnectionUiState(
     val frameTick: Long = 0L,
     val activityLog: List<ActivityLogEntry> = emptyList(),
     val coreEngineLabel: String = "",
+    val useRealLink: Boolean = false,
     val statusMessage: String = "Listo para enlazar con ordenador Windows o GNU/Linux"
 ) {
     /**
@@ -81,6 +84,7 @@ class AndroidConnectionViewModel(
     private val notificationRepository: AndroidNotificationBridgeRepository,
     private val mediaStreamRepository: AndroidMediaStreamRepository,
     private val pairingRepository: AndroidPairingRepository,
+    private val socketLinkRepository: AndroidSocketLinkRepository,
     private val clock: () -> Long = System::currentTimeMillis
 ) : ViewModel() {
 
@@ -102,7 +106,11 @@ class AndroidConnectionViewModel(
     fun cargarEstadoInicial() {
         viewModelScope.launch {
             _uiState.update { it.copy(isScanning = true, status = ConnectionStatus.SEARCHING) }
-            val desktops = deviceRepository.scanAvailableDesktops()
+            val desktops = if (_uiState.value.useRealLink) {
+                listOf(socketLinkRepository.usbDesktop)
+            } else {
+                deviceRepository.scanAvailableDesktops()
+            }
             val notifs = notificationRepository.loadActiveNotifications()
             _uiState.update { state ->
                 state.copy(
@@ -145,9 +153,27 @@ class AndroidConnectionViewModel(
     }
 
     /**
+     * Alterna entre el ordenador simulado y el enlace real por cable USB (`adb reverse` hacia `127.0.0.1:47800`).
+     */
+    fun setRealLinkEnabled(enabled: Boolean) {
+        if (_uiState.value.connectedDesktop != null) {
+            disconnectDesktop()
+        }
+        _uiState.update { state ->
+            state.copy(useRealLink = enabled)
+                .withLog(ActivityCategory.CONNECTION, if (enabled) "Modo de enlace real por USB" else "Modo de enlace simulado")
+        }
+        cargarEstadoInicial()
+    }
+
+    /**
      * Conecta el dispositivo Android con el ordenador seleccionado usando el transporte prioritario disponible.
      */
     fun connectToDesktop(desktop: RemoteDeviceDescriptor) {
+        if (_uiState.value.useRealLink) {
+            connectRealDesktop(desktop)
+            return
+        }
         viewModelScope.launch {
             val current = _uiState.value
             _uiState.update { it.copy(status = ConnectionStatus.PAIRING, statusMessage = "Emparejando con ${desktop.deviceName}…") }
@@ -176,6 +202,7 @@ class AndroidConnectionViewModel(
     fun disconnectDesktop() {
         viewModelScope.launch {
             stopAllStreams()
+            socketLinkRepository.disconnect()
             deviceRepository.disconnectDesktop()
             _uiState.update { state ->
                 state.copy(
@@ -239,6 +266,9 @@ class AndroidConnectionViewModel(
         }
         viewModelScope.launch {
             val synced = deviceRepository.syncClipboardFromMobile(text)
+            if (socketLinkRepository.isConnected) {
+                socketLinkRepository.publishClipboard(synced)
+            }
             _uiState.update { state ->
                 state.copy(
                     clipboardText = synced,
@@ -372,6 +402,105 @@ class AndroidConnectionViewModel(
     }
 
     /**
+     * Abre el enlace real con el ordenador por TCP y arranca los flujos de la sesión real.
+     */
+    private fun connectRealDesktop(desktop: RemoteDeviceDescriptor) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(status = ConnectionStatus.PAIRING, statusMessage = "Conectando con el ordenador por USB…") }
+            val error = socketLinkRepository.connect(_uiState.value.direction)
+            if (error != null) {
+                _uiState.update { state ->
+                    state.copy(
+                        status = ConnectionStatus.ERROR,
+                        statusMessage = "$error. Inicie el escritorio con enlace real y pulse Conectar en la PC."
+                    ).withLog(ActivityCategory.CONNECTION, "Falla del enlace real: $error")
+                }
+                return@launch
+            }
+            _uiState.update { state ->
+                state.copy(
+                    status = ConnectionStatus.CONNECTED,
+                    connectedDesktop = desktop,
+                    activeTransport = TransportType.USB_CABLE,
+                    pairingPin = null,
+                    linkTelemetry = LinkTelemetry(signalQualityPercent = 100),
+                    statusMessage = "Enlazado por cable USB; compara el PIN con el ordenador"
+                ).withLog(ActivityCategory.CONNECTION, "Enlace real abierto con ${desktop.deviceName}")
+            }
+            startRealSessionStreams()
+        }
+    }
+
+    /**
+     * Procesa los eventos del ordenador y espeja las notificaciones del teléfono mientras el enlace real siga abierto.
+     */
+    private fun startRealSessionStreams() {
+        sessionJobs.forEach { it.cancel() }
+        sessionJobs = listOf(
+            viewModelScope.launch {
+                socketLinkRepository.events().collect { event -> applyDesktopLinkEvent(event) }
+            },
+            viewModelScope.launch {
+                if (_uiState.value.featureToggles.syncNotifications) {
+                    _uiState.value.notifications.filterNot { it.isResolved }.forEach { socketLinkRepository.publishNotification(it) }
+                }
+                notificationRepository.incomingNotifications().collect { item ->
+                    if (_uiState.value.featureToggles.syncNotifications) {
+                        socketLinkRepository.publishNotification(item)
+                        _uiState.update { state ->
+                            state.copy(notifications = listOf(item) + state.notifications.filterNot { it.notificationId == item.notificationId })
+                                .withLog(ActivityCategory.NOTIFICATION, "${item.appName} espejada al ordenador")
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    /**
+     * Aplica al estado un evento recibido del ordenador por el enlace real.
+     */
+    private suspend fun applyDesktopLinkEvent(event: DesktopLinkEvent) {
+        when (event) {
+            is DesktopLinkEvent.Hello -> _uiState.update { state ->
+                state.copy(pairingPin = event.pairingPin).withLog(ActivityCategory.CONNECTION, "Saludo recibido de ${event.desktopName}")
+            }
+            is DesktopLinkEvent.ClipboardFromDesktop -> _uiState.update { state ->
+                if (!state.featureToggles.syncClipboard) {
+                    state
+                } else {
+                    state.copy(
+                        clipboardText = event.text,
+                        clipboardHistory = (listOf(ClipboardHistoryEntry(event.text, fromMobile = false, epochMillis = clock())) + state.clipboardHistory).take(8)
+                    ).withLog(ActivityCategory.CLIPBOARD, "Texto recibido del ordenador")
+                }
+            }
+            is DesktopLinkEvent.Resolution -> {
+                val updated = notificationRepository.resolveNotificationFromDesktop(event.action)
+                _uiState.update { state ->
+                    state.copy(notifications = updated).withLog(ActivityCategory.NOTIFICATION, "Resolución recibida desde la PC")
+                }
+            }
+            DesktopLinkEvent.Heartbeat -> _uiState.update { state ->
+                state.copy(linkTelemetry = state.linkTelemetry.copy(framesReceived = state.linkTelemetry.framesReceived + 1))
+            }
+            is DesktopLinkEvent.Closed -> {
+                _uiState.update { state ->
+                    state.copy(
+                        status = ConnectionStatus.DISCONNECTED,
+                        connectedDesktop = null,
+                        activeTransport = null,
+                        pairingPin = null,
+                        linkTelemetry = LinkTelemetry(),
+                        statusMessage = event.reason
+                    ).withLog(ActivityCategory.CONNECTION, "Enlace real cerrado: ${event.reason}")
+                }
+                stopAllStreams()
+            }
+        }
+    }
+
+    /**
      * Mantiene el reloj de cuadros solo mientras alguna vista previa animada lo necesite.
      */
     private fun refreshFrameClock() {
@@ -414,7 +543,8 @@ class AndroidConnectionViewModel(
                 deviceRepository = AndroidDeviceRepository(rustCore),
                 notificationRepository = AndroidNotificationBridgeRepository(),
                 mediaStreamRepository = AndroidMediaStreamRepository(rustCore),
-                pairingRepository = AndroidPairingRepository(rustCore)
+                pairingRepository = AndroidPairingRepository(rustCore),
+                socketLinkRepository = AndroidSocketLinkRepository(rustCore)
             )
         }
 

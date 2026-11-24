@@ -4,6 +4,15 @@ Todas las versiones se publican en la sección *Releases* del repositorio. Las v
 
 ---
 
+## [Sin publicar]
+
+### Agregado
+- Enlace real por cable USB (`adb reverse`) entre escritorio y Android sobre TCP en loopback, seleccionable con `UPIICSA_ENLACE=real` en el escritorio y el interruptor "Enlace real por cable USB" en Android.
+- Mensaje de protocolo `NotificationPosted` (`0x13`) para espejar notificaciones del teléfono por el enlace real.
+- `FrameReassembler` (Kotlin) y `FrameSocketChannel` compartidos por escritorio y Android; prueba extremo a extremo en bucle local.
+
+---
+
 ## [0.1.0-alpha] — 2026-11-24
 
 Primera liberación preliminar para revisión del equipo. **No apta para uso diario:** la interfaz, el protocolo y el core nativo son reales, pero los servicios del sistema operativo y la conexión con el teléfono todavía funcionan con **simuladores** (ver [`docs/CONTRATOS_DUMMY.md`](https://github.com/Vidruck/UPIICSA-Connect/blob/dev/docs/CONTRATOS_DUMMY.md)).

@@ -52,6 +52,7 @@ class DesktopConnectionService(
     private val audioSinkPort: OsAudioSinkOutboundPort,
     private val phoneEventPort: PhoneEventStreamOutboundPort,
     private val localDeviceId: String = "pc-upiicsa-escritorio",
+    private val linkModeLabel: String = "Simulado (teléfono virtual)",
     private val clock: () -> Long = System::currentTimeMillis
 ) : DesktopUseCases {
 
@@ -64,7 +65,7 @@ class DesktopConnectionService(
      * Describe el núcleo nativo inyectado (binario Rust vía JNA o simulación Kotlin).
      */
     override fun coreRuntimeInfo(): CoreRuntimeInfo =
-        CoreRuntimeInfo(version = rustCore.coreVersion(), nativeBacked = rustCore.isNativeBacked)
+        CoreRuntimeInfo(version = rustCore.coreVersion(), nativeBacked = rustCore.isNativeBacked, linkModeLabel = linkModeLabel)
 
     /**
      * Consulta los dispositivos disponibles ordenando primero los accesibles por cable USB.
@@ -361,6 +362,10 @@ class DesktopConnectionService(
                     updateLinkTelemetry { it.copy(framesSent = it.framesSent + 1) }
                     updateMediaTelemetry { it.copy(displayFramesSent = it.displayFramesSent + 1) }
                 }
+            }
+            is PhoneEvent.LinkClosed -> {
+                mutate { log(clock(), ActivityCategory.CONNECTION, "Enlace cerrado: ${event.reason}") }
+                disconnect()
             }
             is PhoneEvent.LinkHeartbeat -> mutate {
                 updateLinkTelemetry {
