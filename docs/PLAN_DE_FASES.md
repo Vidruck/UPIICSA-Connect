@@ -2,7 +2,7 @@
 
 Este documento controla el avance real del proyecto **UPIICSA-Connect**, detalla los entregables de cada fase y establece el porcentaje verificado de cumplimiento. Toda modificación al código fuente o a los contratos debe reflejarse aquí conforme a [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
-> **Última actualización:** 2026-11-24 — intervenciones **IA-007** e **IA-008** (ver [`BITACORA_IA.md`](BITACORA_IA.md)). Primera liberación: **`v0.1.0-alpha`** (ver [`CHANGELOG.md`](../CHANGELOG.md)).
+> **Última actualización:** 2026-11-24 — intervenciones **IA-007**, **IA-008** e **IA-009** (ver [`BITACORA_IA.md`](BITACORA_IA.md)). Primera liberación: **`v0.1.0-alpha`** (ver [`CHANGELOG.md`](../CHANGELOG.md)).
 
 ---
 
@@ -13,11 +13,11 @@ Este documento controla el avance real del proyecto **UPIICSA-Connect**, detalla
 | **Fase 1** | Cimientos, Gobernanza, Arquitectura Base, Tema UPIICSA y Contratos | **Completada** | **100%** |
 | **Fase 2** | Core Nativo Rust (Transporte Priorizado, Framing CRC32, Protocolo y DSP *Music Mode*) | **En Progreso (Core 0.3.0; binding JNA en escritorio y JNI en Android empaquetados en los instaladores; códecs Opus/H.264 pendientes)** | **90%** |
 | **Fase 3** | Conectividad Real USB (AOAv2/ADB) y Fallback Inalámbrico (Wi-Fi/Bluetooth) | **En Progreso (Enlace real TCP por cable USB con `adb reverse`, reensamblado y latidos en escritorio y Android, probado E2E en bucle local; Wi-Fi/mTLS, Bluetooth y AOAv2 pendientes)** | **60%** |
-| **Fase 4** | Resolución de Notificaciones y Portapapeles Bidireccional | **En Progreso (Notificaciones, respuestas y portapapeles viajan por el enlace real con el mensaje `NotificationPosted`; captura y publicación nativas en cada S.O. pendientes)** | **50%** |
-| **Fase 5** | Music Mode y Cámara/Micrófono Virtual para Videollamadas | **En Progreso (Cadena PCM -> DSP -> sumidero con niveles en vivo, jitter buffer y vistas previas; drivers PipeWire/v4l2/WASAPI/DirectShow pendientes)** | **40%** |
+| **Fase 4** | Resolución de Notificaciones y Portapapeles Bidireccional | **En Progreso (Notificaciones, respuestas y portapapeles viajan por el enlace real; en el escritorio el portapapeles y las notificaciones del sistema ya son reales en GNU/Linux y Windows; captura en Android y botones de acción en la notificación del sistema pendientes)** | **65%** |
+| **Fase 5** | Music Mode y Cámara/Micrófono Virtual para Videollamadas | **En Progreso (Cadena PCM -> DSP -> tarjeta de sonido real de la PC con Java Sound; captura en Android y cámara/micrófono virtuales pendientes)** | **50%** |
 | **Fase 6** | Monitor Secundario (Tablet/Android), Pruebas Integrales E2E y Empaquetado | **En Progreso (CI en GNU/Linux, Windows y Android; liberación automatizada `.deb`/`.AppImage`/`.msi`/portables/APK firmado; drivers de pantalla y E2E con dispositivos pendientes)** | **45%** |
 
-**Avance Global (promedio simple de las 6 fases):** **64%** (antes 60%).
+**Avance Global (promedio simple de las 6 fases):** **68%** (antes 64%).
 
 ---
 
@@ -68,7 +68,7 @@ Este documento controla el avance real del proyecto **UPIICSA-Connect**, detalla
 - [ ] Conmutación entre medios con `LinkSupervisor` (requiere los transportes Wi-Fi/Bluetooth).
 - [ ] Negociación de versión de protocolo en `HandshakeHello`.
 
-### Fase 4: Notificaciones Resolvibles y Portapapeles — **45% Completada**
+### Fase 4: Notificaciones Resolvibles y Portapapeles — **65% Completada**
 - [x] Modelos `PhoneNotificationItem` y `NotificationResolutionAction` (Responder en línea, Marcar como leído, Descartar).
 - [x] Casos de uso en `DesktopConnectionService` y bandeja interactiva en el panel de escritorio.
 - [x] Repositorio `AndroidNotificationBridgeRepository` y ViewModel `AndroidConnectionViewModel`.
@@ -77,18 +77,20 @@ Este documento controla el avance real del proyecto **UPIICSA-Connect**, detalla
 - [x] *(IA-006)* Resoluciones y portapapeles viajan codificados con `ChannelMessageCodec` (sin cadenas `"REPLY|id|texto"` vulnerables a separadores).
 - [x] *(IA-006)* Pantallas dedicadas de Avisos y Portapapeles (historial por origen) en escritorio y Android.
 - [x] *(IA-008)* Mensaje de protocolo `NotificationPosted` (`0x13`, canal 1) en Rust y Kotlin con vector binario compartido: las notificaciones del teléfono, las respuestas y el portapapeles viajan por el enlace real.
-- [ ] Conexión real al demonio `org.freedesktop.Notifications` (DBus) en GNU/Linux y `Windows.UI.Notifications` (WinRT) en Windows.
+- [x] *(IA-009)* Publicación real en el escritorio: `org.freedesktop.Notifications` por D-Bus con `gdbus` (GNU/Linux) y toasts `Windows.UI.Notifications` con PowerShell (Windows); la notificación se reemplaza si llega de nuevo y se retira al resolverla desde la PC. El contenido del teléfono viaja escapado y sin shell.
+- [ ] Botones de acción (Responder / Marcar como leído / Descartar) dentro de la notificación del sistema (señal `ActionInvoked` de D-Bus y activación de toasts).
 - [ ] Implementación de `NotificationListenerService` y despacho real de `PendingIntent` + `RemoteInput` en Android SDK >= 26.
-- [ ] Listener real del portapapeles de X11/Wayland, Win32 y `ClipboardManager` de Android.
+- [x] *(IA-009)* Portapapeles real del escritorio: `wl-clipboard` (Wayland), `xclip`/`xsel` (X11) o AWT como respaldo en GNU/Linux; `user32.dll` vía JNA en Windows. Vigilancia cada 1 s que envía al teléfono lo copiado en la PC durante la sesión (sin reenviar lo copiado antes de conectar ni lo recibido del teléfono).
+- [ ] `ClipboardManager` real en Android.
 
-### Fase 5: Music Mode y Cámara/Micrófono Virtual — **40% Completada**
+### Fase 5: Music Mode y Cámara/Micrófono Virtual — **50% Completada**
 - [x] Flujo *Music Mode* en dominio, DSP Rust (`process_music_mode_pcm_block`), ViewModel Android y panel de escritorio.
 - [x] Adaptadores segregados `LinuxPipeWireAudioSinkAdapter`, `WindowsWasapiAudioSinkAdapter`, `LinuxV4l2CameraMicAdapter` y `WindowsDirectShowCameraMicAdapter`.
 - [x] *(IA-006)* `PcmJitterBuffer` (Rust): reordenamiento por secuencia, ocultamiento de pérdidas con silencio y telemetría.
 - [x] *(IA-006)* Cadena continua PCM -> DSP del core -> sumidero del S.O. con medidor de nivel en vivo y control de ganancia.
 - [x] *(IA-006)* Interruptores independientes de cámara, micrófono y cámara trasera con vista previa y medidor de micrófono.
 - [ ] Captura real de audio interno Android mediante `AudioPlaybackCaptureConfiguration` (Android 10+) o proyección de sesión multimedia.
-- [ ] Reproducción nativa en tarjeta de sonido PC vía **PipeWire / PulseAudio** (GNU/Linux) y **WASAPI** (Windows).
+- [x] *(IA-009)* Reproducción real en la tarjeta de sonido de la PC con `javax.sound.sampled` (ALSA/PipeWire en GNU/Linux, DirectSound/WASAPI en Windows) en un hilo propio con cola acotada que descarta bloques atrasados sin frenar el enlace.
 - [ ] Creación de dispositivo virtual `/dev/video*` (`v4l2loopback`) en Linux y fuente virtual MediaFoundation/DirectShow en Windows usando `CameraX` + `AudioRecord` desde Android.
 
 ### Fase 6: Monitor Secundario, Pruebas E2E y Empaquetado — **45% Completada**
@@ -131,8 +133,8 @@ Ordena los entregables aún sin marcar (`[ ]`) en versiones incrementales. Cada 
 | :--- | :--- | :--- | :--- | :--- |
 | **v0.1.0-alpha** *(liberada en IA-007)* | 2, 6 | Binding JNI en Android, core nativo empaquetado, CI y liberación automatizada multiplataforma, APK firmado. | `JniRustCoreBridge`, `NativeCoreLoader`, `desktopApp/build.gradle.kts`, `.github/workflows/*` | CI en verde; artefactos publicados con `SHA256SUMS.txt`. |
 | **v0.2.0** *(en curso; enlace USB y prueba E2E local hechos en IA-008)* | 3 | Enlace real por TCP: servidor en escritorio, túnel USB con `adb reverse`, cliente en Android; reensamblado y latidos *(hecho)*; saludo con versión de protocolo y prueba con teléfono físico *(pendiente)*. El descubrimiento mDNS/NSD en LAN se mueve a v0.4.0 para no exponer el puerto sin mTLS. | `DeviceTransportOutboundPort` (nuevo `TcpLinkServerAdapter`, `AdbReverseTunnelAdapter`), `PhoneEventStreamOutboundPort` (`SocketPhoneEventStreamAdapter`), `AndroidDeviceRepository` (+ `AndroidSocketLinkRepository`) | Prueba E2E en bucle local JVM (escritorio + cliente que actúa como teléfono): saludo, PIN, latidos, notificación, respuesta, portapapeles y desconexión; prueba manual con teléfono físico por USB. |
-| **v0.3.0** | 4 | Portapapeles real (`wl-clipboard`/`xclip`, Win32 vía JNA, `ClipboardManager`) y notificaciones reales (D-Bus `org.freedesktop.Notifications`, toasts WinRT, `NotificationListenerService` + `RemoteInput`/`PendingIntent`). | `OsClipboardOutboundPort`, `OsNotificationOutboundPort` (adaptadores Linux y Windows), `AndroidNotificationBridgeRepository` | Pruebas con ejecutor de procesos simulado; viaje de ida y vuelta real del portapapeles en GNU/Linux y en el runner Windows; validación manual en dispositivo físico. |
+| **v0.3.0** *(escritorio hecho en IA-009; Android pendiente)* | 4 | Portapapeles real (`wl-clipboard`/`xclip`, Win32 vía JNA, `ClipboardManager`) y notificaciones reales (D-Bus `org.freedesktop.Notifications`, toasts WinRT, `NotificationListenerService` + `RemoteInput`/`PendingIntent`). | `OsClipboardOutboundPort`, `OsNotificationOutboundPort` (adaptadores Linux y Windows), `AndroidNotificationBridgeRepository` | Pruebas con ejecutor de procesos simulado; viaje de ida y vuelta real del portapapeles en GNU/Linux y en el runner Windows; validación manual en dispositivo físico. |
 | **v0.4.0** | 3 (seguridad) | Emparejamiento criptográfico ECDH + SAS (sustituye el PIN CRC32 dummy), mTLS sobre TCP, escucha en LAN Wi-Fi con descubrimiento mDNS/NSD, identificador por instalación en Android Keystore, respaldo Bluetooth RFCOMM/L2CAP. | `pairing.rs`, `RustCoreBridgeContract`, `AndroidPairingRepository`, adaptadores de transporte | Vectores de prueba del intercambio en Rust y Kotlin; rechazo de pares no emparejados; prueba manual Bluetooth con dispositivo. |
-| **v0.5.0** | 5 | *Music Mode* real (`AudioPlaybackCaptureConfiguration` en Android; reproducción PipeWire/`javax.sound` y WASAPI en escritorio), códec Opus, cámara/micrófono virtual (`v4l2loopback` + nodo PipeWire; fuente virtual MediaFoundation). | `OsAudioSinkOutboundPort`, `OsVirtualCameraMicOutboundPort`, `AndroidMediaStreamRepository`, `signal_dsp.rs` | Reproducción audible del tono del simulador; latencia medida con `PcmJitterBuffer`; dispositivo `/dev/video*` visible en GNU/Linux. |
+| **v0.5.0** *(reproducción en escritorio hecha en IA-009)* | 5 | *Music Mode* real (`AudioPlaybackCaptureConfiguration` en Android; reproducción PipeWire/`javax.sound` y WASAPI en escritorio), códec Opus, cámara/micrófono virtual (`v4l2loopback` + nodo PipeWire; fuente virtual MediaFoundation). | `OsAudioSinkOutboundPort`, `OsVirtualCameraMicOutboundPort`, `AndroidMediaStreamRepository`, `signal_dsp.rs` | Reproducción audible del tono del simulador; latencia medida con `PcmJitterBuffer`; dispositivo `/dev/video*` visible en GNU/Linux. |
 | **v0.6.0** | 6 | Monitor secundario real (EVDI / PipeWire ScreenCast en GNU/Linux; IddCx + Desktop Duplication en Windows), codificación H.264/HEVC por hardware, decodificación `MediaCodec` a pantalla completa y retorno táctil/lápiz. | `OsVirtualDisplayOutboundPort`, `AndroidMediaStreamRepository` | Cuadros a 60 fps en tablet física; latencia extremo a extremo < 50 ms por USB. |
 | **v1.0.0** | 6 | Pruebas E2E con dispositivos físicos, R8/minificación del APK, firma de código del `.msi`, publicación del `.AppImage` con actualización delta y revisión completa de seguridad. | Todos | Lista de verificación E2E firmada por el equipo; liberación estable (no *pre-release*). |

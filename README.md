@@ -80,6 +80,13 @@ Por omisión ambas apps usan el teléfono/ordenador simulado. Para probar el enl
 
 El servidor escucha únicamente en `127.0.0.1`; el enlace por Wi-Fi se habilitará junto con mTLS (v0.4.0).
 
+Con el enlace real, el escritorio usa además el portapapeles y las notificaciones del sistema:
+
+- **GNU/Linux:** instale `wl-clipboard` (Wayland) o `xclip`/`xsel` (X11) para el portapapeles; sin ellos se usa el de AWT. Las notificaciones requieren `gdbus` (paquete `libglib2.0-bin`) y un demonio de notificaciones (GNOME, KDE, etc.).
+- **Windows:** portapapeles por `user32.dll`; las notificaciones aparecen como toasts de *Windows PowerShell*.
+
+*Music Mode* reproduce el audio en la tarjeta de sonido de la PC en ambos modos.
+
 ## Compilación, Ejecución y Pruebas
 
 El repositorio incluye el **Gradle Wrapper 8.10.2**. Requisitos: JDK 17, Android SDK 34 (para configurar los módulos KMP) y Rust estable. En GNU/Linux puede prepararse todo con [`scripts/setup-cloud-env.sh`](scripts/setup-cloud-env.sh); en Windows consulte [`docs/STACK_E_INSTALACION_WINDOWS.md`](docs/STACK_E_INSTALACION_WINDOWS.md).
@@ -94,6 +101,9 @@ cargo test --manifest-path core-rust/Cargo.toml
 
 # Pruebas Kotlin: códec, paridad con Rust, servicio, reglas de arquitectura y capturas de pantalla
 ./gradlew :shared:desktopTest :desktopApp:desktopTest
+
+# Además prueba el portapapeles, las notificaciones y el audio reales del equipo (muestra un aviso breve)
+UPIICSA_PRUEBAS_SO_REAL=1 ./gradlew :desktopApp:desktopTest
 
 # APK debug de Android (agregue -Pupiicsa.buildRustCore=true para incluir el core vía cargo-ndk)
 ./gradlew :androidApp:assembleDebug

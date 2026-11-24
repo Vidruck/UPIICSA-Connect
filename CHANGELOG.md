@@ -10,6 +10,12 @@ Todas las versiones se publican en la sección *Releases* del repositorio. Las v
 - Enlace real por cable USB (`adb reverse`) entre escritorio y Android sobre TCP en loopback, seleccionable con `UPIICSA_ENLACE=real` en el escritorio y el interruptor "Enlace real por cable USB" en Android.
 - Mensaje de protocolo `NotificationPosted` (`0x13`) para espejar notificaciones del teléfono por el enlace real.
 - `FrameReassembler` (Kotlin) y `FrameSocketChannel` compartidos por escritorio y Android; prueba extremo a extremo en bucle local.
+- Portapapeles real del escritorio: `wl-clipboard`, `xclip`, `xsel` o AWT en GNU/Linux y `user32.dll` en Windows. Lo que se copia en la PC durante la sesión se envía al teléfono automáticamente.
+- Notificaciones del teléfono en el escritorio: D-Bus (`org.freedesktop.Notifications`) en GNU/Linux y toasts en Windows; se retiran al responderlas, marcarlas o descartarlas desde la PC.
+- *Music Mode* suena en la tarjeta de sonido de la PC (Java Sound sobre ALSA/PipeWire o DirectSound/WASAPI).
+
+### Cambiado
+- El portapapeles y las notificaciones del sistema solo se usan con el enlace real; con el teléfono simulado siguen en memoria para no sobrescribir el portapapeles del usuario.
 
 ---
 
