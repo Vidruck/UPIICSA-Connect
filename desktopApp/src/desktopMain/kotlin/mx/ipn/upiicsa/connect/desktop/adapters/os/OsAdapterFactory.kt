@@ -12,6 +12,7 @@ import mx.ipn.upiicsa.connect.desktop.adapters.os.windows.WindowsWasapiAudioSink
 import mx.ipn.upiicsa.connect.desktop.adapters.os.windows.WindowsWin32ClipboardAdapter
 import mx.ipn.upiicsa.connect.desktop.adapters.os.windows.WindowsWinRtNotificationAdapter
 import mx.ipn.upiicsa.connect.desktop.adapters.simulation.DummyPhoneEventStreamAdapter
+import mx.ipn.upiicsa.connect.desktop.adapters.preferences.FileDesktopPreferencesAdapter
 import mx.ipn.upiicsa.connect.desktop.adapters.process.SystemProcessRunner
 import mx.ipn.upiicsa.connect.desktop.adapters.transport.DesktopLinkMode
 import mx.ipn.upiicsa.connect.desktop.adapters.transport.MultiChannelTransportAdapter
@@ -21,6 +22,8 @@ import mx.ipn.upiicsa.connect.desktop.adapters.transport.tcp.TcpLinkSession
 import mx.ipn.upiicsa.connect.desktop.adapters.transport.tcp.TcpLinkTransportAdapter
 import mx.ipn.upiicsa.connect.desktop.application.DesktopConnectionService
 import mx.ipn.upiicsa.connect.desktop.domain.DesktopSessionAggregate
+import mx.ipn.upiicsa.connect.desktop.ports.inbound.LinkModeInfo
+import mx.ipn.upiicsa.connect.desktop.ports.outbound.DesktopPreferencesOutboundPort
 import mx.ipn.upiicsa.connect.desktop.ports.outbound.OsAudioSinkOutboundPort
 import mx.ipn.upiicsa.connect.desktop.ports.outbound.OsClipboardOutboundPort
 import mx.ipn.upiicsa.connect.desktop.ports.outbound.OsNotificationOutboundPort
@@ -96,8 +99,10 @@ object OsAdapterFactory {
     fun createDesktopService(
         platform: DesktopOsPlatform = detectHostPlatform(),
         rustCore: RustCoreBridgeContract = NativeCoreLoader.loadOrDummy(),
-        linkMode: DesktopLinkMode = DesktopLinkMode.fromEnvironment()
+        preferences: DesktopPreferencesOutboundPort = FileDesktopPreferencesAdapter(),
+        linkModeOverride: DesktopLinkMode? = DesktopLinkMode.environmentOverride()
     ): DesktopConnectionService {
+        val linkMode = DesktopLinkMode.resolve(linkModeOverride, preferences.isRealLinkPreferred())
         val bundle = createPortBundle(platform, linkMode)
         val (transportPort, phoneEventPort) = createLinkPorts(linkMode, rustCore)
         return DesktopConnectionService(
@@ -110,7 +115,12 @@ object OsAdapterFactory {
             virtualCameraMicPort = bundle.virtualCameraMicPort,
             audioSinkPort = bundle.audioSinkPort,
             phoneEventPort = phoneEventPort,
-            linkModeLabel = linkMode.displayLabel
+            linkMode = LinkModeInfo(
+                label = linkMode.displayLabel,
+                realActive = linkMode == DesktopLinkMode.REAL_TCP,
+                lockedByEnvironment = linkModeOverride != null
+            ),
+            preferencesPort = preferences
         )
     }
 

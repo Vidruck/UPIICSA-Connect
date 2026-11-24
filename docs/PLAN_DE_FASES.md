@@ -60,6 +60,7 @@ Este documento controla el avance real del proyecto **UPIICSA-Connect**, detalla
 - [x] *(IA-008)* Enlace real por cable USB con `adb reverse tcp:47800`: servidor TCP de escritorio **solo en loopback** (`TcpLinkSession`, `TcpLinkTransportAdapter`, `AdbDeviceBridge`) y cliente Android (`AndroidSocketLinkRepository`), seleccionable con `-Dupiicsa.enlace=real` / `UPIICSA_ENLACE=real` y el interruptor "Enlace real por cable USB" en Android.
 - [x] *(IA-008)* Canal compartido `FrameSocketChannel` (conjunto `jvmCommonMain`, mismo código en escritorio y Android) y `FrameReassembler` (paridad Kotlin de `FrameStreamDecoder` con los mismos casos de prueba).
 - [x] *(IA-008)* Prueba E2E en bucle local JVM (`TcpLinkLoopbackTest`): saludo + PIN, latidos con latencia, notificación entrante, respuesta, portapapeles en ambos sentidos y cierre; pruebas JVM del repositorio Android sin emulador.
+- [x] *(IA-010)* Interruptor «Enlace real por cable USB» en Ajustes del escritorio, guardado en la configuración del usuario (la variable `UPIICSA_ENLACE` sigue teniendo prioridad).
 - [ ] Prueba manual con teléfono físico por USB (requiere dispositivo; no ejecutada).
 - [ ] `USB Accessory (AOAv2)` en Android como alternativa a ADB.
 - [ ] Descubrimiento mDNS/NSD en LAN Wi-Fi con cifrado TLS mutuo (mTLS) y emparejamiento por código PIN/QR criptográfico (ECDH + SAS).

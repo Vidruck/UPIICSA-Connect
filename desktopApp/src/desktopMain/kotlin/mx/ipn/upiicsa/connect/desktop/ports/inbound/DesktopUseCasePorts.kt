@@ -124,7 +124,18 @@ interface MusicModeUseCase {
 data class CoreRuntimeInfo(
     val version: String,
     val nativeBacked: Boolean,
-    val linkModeLabel: String
+    val linkModeLabel: String,
+    val linkMode: LinkModeInfo = LinkModeInfo(),
+    val realLinkPreferred: Boolean = false
+)
+
+/**
+ * Modo de enlace con el que arrancó el escritorio.
+ */
+data class LinkModeInfo(
+    val label: String = "Simulado (teléfono virtual)",
+    val realActive: Boolean = false,
+    val lockedByEnvironment: Boolean = false
 )
 
 /**
@@ -141,6 +152,11 @@ interface SessionObservationUseCase {
      * Describe el núcleo nativo activo.
      */
     fun coreRuntimeInfo(): CoreRuntimeInfo
+
+    /**
+     * Guarda si el escritorio debe iniciar con el enlace real; se aplica al reiniciar la app.
+     */
+    fun setRealLinkPreferred(enabled: Boolean): CoreRuntimeInfo
 
     /**
      * Aplica un evento recibido del teléfono a la sesión y a los adaptadores del sistema operativo.

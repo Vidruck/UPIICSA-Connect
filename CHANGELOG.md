@@ -14,6 +14,7 @@ Todas las versiones se publican en la sección *Releases* del repositorio. Las v
 - Notificaciones del teléfono en el escritorio: D-Bus (`org.freedesktop.Notifications`) en GNU/Linux y toasts en Windows; se retiran al responderlas, marcarlas o descartarlas desde la PC.
 - *Music Mode* suena en la tarjeta de sonido de la PC (Java Sound sobre ALSA/PipeWire o DirectSound/WASAPI).
 - El saludo de enlace incluye la versión de protocolo; versiones distintas se desconectan con un aviso para actualizar ambas apps.
+- Interruptor «Enlace real por cable USB» en Ajustes del escritorio (se aplica al reiniciar; `UPIICSA_ENLACE` tiene prioridad).
 - Android (con el enlace real): espejo de las notificaciones reales del teléfono con respuesta en línea, «marcar como leída» y descarte desde la PC (requiere conceder el acceso a notificaciones), y portapapeles real del sistema. Aún sin probar en un dispositivo físico.
 
 ### Cambiado

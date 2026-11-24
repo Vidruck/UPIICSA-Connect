@@ -78,10 +78,19 @@ class DesktopPanelController(
      */
     val local: StateFlow<DesktopPanelLocalState> = mutableLocal.asStateFlow()
 
+    private val mutableCoreInfo = MutableStateFlow(useCases.coreRuntimeInfo())
+
     /**
-     * Información del núcleo nativo activo.
+     * Información del núcleo nativo y del modo de enlace, actualizada al cambiar la preferencia en Ajustes.
      */
-    val coreInfo: CoreRuntimeInfo = useCases.coreRuntimeInfo()
+    val coreInfo: StateFlow<CoreRuntimeInfo> = mutableCoreInfo.asStateFlow()
+
+    /**
+     * Guarda si el escritorio debe iniciar con el enlace real (se aplica al reiniciar).
+     */
+    fun setRealLinkPreferred(enabled: Boolean) {
+        mutableCoreInfo.value = useCases.setRealLinkPreferred(enabled)
+    }
 
     /**
      * Inicia la escucha de eventos del teléfono, la vigilancia del portapapeles y la primera búsqueda de dispositivos.

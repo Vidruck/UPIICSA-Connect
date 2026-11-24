@@ -74,7 +74,7 @@ Sin publicar, el mismo flujo compila todos los artefactos en cada Pull Request q
 Por omisión ambas apps usan el teléfono/ordenador simulado. Para probar el enlace real (rama `dev`, aún no incluido en una liberación):
 
 1. Active la **depuración USB** en el teléfono, conéctelo por cable y autorice el equipo (`adb devices` debe mostrarlo como `device`).
-2. Inicie el escritorio en modo real: `UPIICSA_ENLACE=real ./gradlew :desktopApp:run` (o `-Dupiicsa.enlace=real`). En **Ajustes** se indica el modo activo.
+2. En el escritorio, active **Ajustes → Enlace real por cable USB** y reinicie la app (la preferencia se guarda en `~/.config/upiicsa-connect/ajustes.properties` o `%APPDATA%\UPIICSA-Connect\ajustes.properties`). Para una sola ejecución también puede usar `UPIICSA_ENLACE=real` o `-Dupiicsa.enlace=real`, que tienen prioridad sobre Ajustes.
 3. En el escritorio pulse **Buscar** y **Conectar** sobre el teléfono detectado: se crea el túnel `adb reverse tcp:47800 tcp:47800` y el servidor espera 30 s.
 4. En Android, active **Enlace real por cable USB** (pestaña Enlace) y pulse **Conectar**. Ambos equipos muestran el mismo PIN.
 5. Para espejar las notificaciones reales, en la pestaña **Avisos** pulse **Abrir ajustes de acceso** y conceda el «Acceso a notificaciones» a UPIICSA-Connect.

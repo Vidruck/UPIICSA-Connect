@@ -57,6 +57,22 @@ interface OsNotificationOutboundPort {
 }
 
 /**
+ * Puerto de salida para las preferencias persistentes del escritorio.
+ */
+interface DesktopPreferencesOutboundPort {
+
+    /**
+     * Indica si el usuario eligió iniciar con el enlace real por cable USB.
+     */
+    fun isRealLinkPreferred(): Boolean
+
+    /**
+     * Guarda la elección del modo de enlace; retorna `false` si no se pudo persistir.
+     */
+    fun setRealLinkPreferred(enabled: Boolean): Boolean
+}
+
+/**
  * Puerto de salida exclusivo para el portapapeles del sistema operativo de escritorio.
  */
 interface OsClipboardOutboundPort {
