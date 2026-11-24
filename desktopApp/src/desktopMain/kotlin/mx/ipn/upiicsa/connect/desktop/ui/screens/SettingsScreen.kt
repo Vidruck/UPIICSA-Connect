@@ -74,14 +74,14 @@ fun SettingsScreen(controller: DesktopPanelController, local: DesktopPanelLocalS
                 )
             }
             Text(
-                text = "Para usar el binario nativo compile core-rust (./gradlew :desktopApp:buildRustCore) o indique la ruta con " +
+                text = "Los instaladores incluyen el binario nativo; en desarrollo compile core-rust (./gradlew :desktopApp:buildRustCore) o indique la ruta con " +
                     "-Dupiicsa.core.lib.path / UPIICSA_CORE_LIB.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         SectionCard(title = "Acerca de", icon = Icons.Rounded.Info) {
-            UpiicsaWordmark(subtitle = "Escritorio ${controller.platformLabel} · Versión 1.0.0")
+            UpiicsaWordmark(subtitle = "Escritorio ${controller.platformLabel} · Versión 0.1.0-alpha")
             Text(
                 text = "Plataforma de convergencia entre equipos de escritorio Windows / GNU/Linux y dispositivos Android. " +
                     "Todos los derechos reservados al equipo desarrollador.",
