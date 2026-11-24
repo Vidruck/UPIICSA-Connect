@@ -115,7 +115,7 @@ class UpiicsaNotificationListenerService : NotificationListenerService(), Notifi
     }
 
     /**
-     * Dispara la acción de la app dueña de la notificación; retorna `false` si la app la canceló.
+     * Dispara la acción de la app dueña de la notificación; retorna `false` si la app la canceló o restringió el envío.
      */
     private fun sendQuietly(intent: PendingIntent?, fillIn: Intent?): Boolean {
         val target = intent ?: return false
@@ -123,6 +123,8 @@ class UpiicsaNotificationListenerService : NotificationListenerService(), Notifi
             target.send(this, 0, fillIn)
             true
         } catch (error: PendingIntent.CanceledException) {
+            false
+        } catch (error: SecurityException) {
             false
         }
     }

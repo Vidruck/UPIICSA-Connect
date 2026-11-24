@@ -86,7 +86,7 @@ data class AndroidConnectionUiState(
  */
 class AndroidConnectionViewModel(
     private val deviceRepository: AndroidDeviceRepository,
-    private val notificationRepository: AndroidNotificationBridgeRepository,
+    private val notificationRepository: NotificationBridgeSource,
     private val mediaStreamRepository: AndroidMediaStreamRepository,
     private val pairingRepository: AndroidPairingRepository,
     private val socketLinkRepository: AndroidSocketLinkRepository,
@@ -133,14 +133,30 @@ class AndroidConnectionViewModel(
     }
 
     /**
-     * Actualiza si el usuario concedió el acceso a notificaciones (al volver de los ajustes de Android).
+     * Actualiza permisos y lee cambios recientes del portapapeles al regresar la app a primer plano.
      */
     fun refreshSystemAccess() {
         val granted = systemNotificationRepository?.isAccessGranted() == true
-        if (granted != _uiState.value.notificationAccessGranted) {
+        val state = _uiState.value
+        val newlyGranted = granted && !state.notificationAccessGranted
+        if (granted != state.notificationAccessGranted) {
             _uiState.update { it.copy(notificationAccessGranted = granted) }
-            if (_uiState.value.useRealLink) {
-                cargarEstadoInicial()
+            if (state.useRealLink) {
+                if (socketLinkRepository.isConnected && newlyGranted) {
+                    viewModelScope.launch {
+                        val active = notificationSource().loadActiveNotifications()
+                        _uiState.update { it.copy(notifications = active) }
+                        startRealSessionStreams()
+                    }
+                } else if (!socketLinkRepository.isConnected) {
+                    cargarEstadoInicial()
+                }
+            }
+        }
+        if (state.useRealLink && socketLinkRepository.isConnected && state.featureToggles.syncClipboard) {
+            val currentClip = systemClipboardRepository?.read()?.trim().orEmpty()
+            if (currentClip.isNotBlank()) {
+                viewModelScope.launch { publishPhoneClipboardChange(currentClip) }
             }
         }
     }
@@ -275,6 +291,30 @@ class AndroidConnectionViewModel(
         _uiState.update { state ->
             state.copy(featureToggles = state.featureToggles.copy(syncClipboard = enabled))
                 .withLog(ActivityCategory.CLIPBOARD, if (enabled) "Portapapeles compartido activo" else "Portapapeles pausado")
+        }
+    }
+
+    /**
+     * Lee el portapapeles actual del sistema Android y lo envía al ordenador conectado.
+     */
+    fun sendSystemClipboardToDesktop() {
+        val text = systemClipboardRepository?.read()?.trim().orEmpty()
+        if (text.isBlank()) {
+            _uiState.update { state ->
+                state.copy(statusMessage = "El portapapeles del teléfono está vacío o restringido")
+                    .withLog(ActivityCategory.CLIPBOARD, "Portapapeles del sistema vacío o no accesible")
+            }
+            return
+        }
+        val state = _uiState.value
+        if (socketLinkRepository.isConnected) {
+            if (text == state.clipboardText || text == lastClipboardFromDesktop) {
+                _uiState.update { it.copy(statusMessage = "El portapapeles del teléfono ya estaba sincronizado") }
+                return
+            }
+            viewModelScope.launch { publishPhoneClipboardChange(text) }
+        } else {
+            syncClipboard(text)
         }
     }
 

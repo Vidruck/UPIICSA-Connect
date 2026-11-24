@@ -366,7 +366,8 @@ private fun NotificationAccessCard(granted: Boolean) {
 fun PortapapelesTab(
     uiState: AndroidConnectionUiState,
     onToggleSync: (Boolean) -> Unit,
-    onSend: (String) -> Unit
+    onSend: (String) -> Unit,
+    onSendSystemClipboard: () -> Unit = {}
 ) {
     var draft by rememberSaveable { mutableStateOf("") }
     val tokens = UpiicsaThemeTokens.extendedColors
@@ -397,6 +398,21 @@ fun PortapapelesTab(
             ) {
                 Icon(Icons.Rounded.Upload, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text("  Enviar al ordenador")
+            }
+            if (uiState.useRealLink) {
+                OutlinedButton(
+                    onClick = onSendSystemClipboard,
+                    enabled = uiState.status == ConnectionStatus.CONNECTED,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Rounded.ContentPaste, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("  Enviar portapapeles del teléfono")
+                }
+                Text(
+                    text = "Android 10+ solo permite leer el portapapeles en primer plano; al volver a la app o pulsar este botón se enviará tu última copia.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
         SectionCard(title = "Historial", icon = Icons.Rounded.History, accent = tokens.info) {

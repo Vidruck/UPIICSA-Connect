@@ -2,7 +2,7 @@
 
 Este documento controla el avance real del proyecto **UPIICSA-Connect**, detalla los entregables de cada fase y establece el porcentaje verificado de cumplimiento. Toda modificación al código fuente o a los contratos debe reflejarse aquí conforme a [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
-> **Última actualización:** 2026-11-24 — intervenciones **IA-007** a **IA-010** (ver [`BITACORA_IA.md`](BITACORA_IA.md)). Primera liberación: **`v0.1.0-alpha`** (ver [`CHANGELOG.md`](../CHANGELOG.md)).
+> **Última actualización:** 2026-11-24 — intervenciones **IA-007** a **IA-011** (ver [`BITACORA_IA.md`](BITACORA_IA.md)). Primera liberación: **`v0.1.0-alpha`** (ver [`CHANGELOG.md`](../CHANGELOG.md)).
 
 ---
 
@@ -82,6 +82,7 @@ Este documento controla el avance real del proyecto **UPIICSA-Connect**, detalla
 - [x] *(IA-010)* `UpiicsaNotificationListenerService` (Android): captura con filtros (app propia, persistentes, resúmenes de grupo), respuesta en línea con `RemoteInput` (incluidas acciones `WearableExtender`), «marcar como leída» semántica (Android 9+) y descarte; tarjeta para conceder el acceso a notificaciones. **Compilado, con lint y pruebas JVM; sin probar en dispositivo.**
 - [x] *(IA-009)* Portapapeles real del escritorio: `wl-clipboard` (Wayland), `xclip`/`xsel` (X11) o AWT como respaldo en GNU/Linux; `user32.dll` vía JNA en Windows. Vigilancia cada 1 s que envía al teléfono lo copiado en la PC durante la sesión (sin reenviar lo copiado antes de conectar ni lo recibido del teléfono).
 - [x] *(IA-010)* `ClipboardManager` real en Android con el enlace real: el texto de la PC se copia al teléfono y lo copiado en el teléfono (con la app en primer plano, límite de Android 10+) se envía a la PC sin eco. **Sin probar en dispositivo.**
+- [x] *(IA-011)* Relectura automática del portapapeles de Android al regresar la app a primer plano (`onResume`), botón explícito **«Enviar portapapeles del teléfono»**, captura segura de `SecurityException` en `PendingIntent` y prueba de integración JVM del `AndroidConnectionViewModel` sobre socket loopback.
 
 ### Fase 5: Music Mode y Cámara/Micrófono Virtual — **50% Completada**
 - [x] Flujo *Music Mode* en dominio, DSP Rust (`process_music_mode_pcm_block`), ViewModel Android y panel de escritorio.

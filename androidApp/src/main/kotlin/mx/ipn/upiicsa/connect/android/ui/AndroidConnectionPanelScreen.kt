@@ -97,7 +97,8 @@ fun AndroidConnectionPanelScreen(viewModel: AndroidConnectionViewModel) {
                     AndroidTab.PORTAPAPELES -> PortapapelesTab(
                         uiState = uiState,
                         onToggleSync = viewModel::toggleClipboardSync,
-                        onSend = viewModel::syncClipboard
+                        onSend = viewModel::syncClipboard,
+                        onSendSystemClipboard = viewModel::sendSystemClipboardToDesktop
                     )
                     AndroidTab.MULTIMEDIA -> MultimediaTab(
                         uiState = uiState,
