@@ -2,7 +2,7 @@
 
 En cumplimiento de las reglas de transparencia del proyecto, todo contrato temporal, simulador o dato hardcodeado utilizado para validar la arquitectura y la interfaz de usuario antes de conectar los drivers nativos del sistema operativo está marcado en el código fuente con la etiqueta **`// [DUMMY-PRUEBAS]:`** y documentado en este archivo.
 
-> **Última auditoría:** 2026-11-23 (IA-006). Se verificó con `grep -rn "DUMMY-PRUEBAS"` que cada etiqueta del código tiene una fila en este inventario.
+> **Última auditoría:** 2026-11-24 (IA-007). Se verificó con `grep -rn "DUMMY-PRUEBAS"` que cada etiqueta del código tiene una fila en este inventario.
 
 ---
 
@@ -19,7 +19,7 @@ En cumplimiento de las reglas de transparencia del proyecto, todo contrato tempo
 
 | Archivo | Símbolo / Función | Qué Simula / Dato Hardcodeado | Reemplazo en Fase Futura |
 | :--- | :--- | :--- | :--- |
-| `shared/.../protocol/RustCoreBridgeContract.kt` | `DummyRustCoreBridge` (`coreVersion`, `selectBestTransport`, `processMusicModePcm`, `computeFrameChecksum`, `encodeFrame`, `validateWireFrame`, `derivePairingPin`) | Implementación pura en Kotlin que replica byte a byte el core Rust 0.2.0 (prioridad de transporte, DSP, CRC32, serialización/validación de tramas y PIN). Sus resultados están fijados por vectores de referencia compartidos con `core-rust/src/lib.rs`. Se usa en Android y como respaldo en escritorio cuando no se encuentra el binario. | Escritorio: ya existe `JnaRustCoreBridge` (Fase 2). Android: `JniRustCoreBridge` cargando `libupiicsa_core_rs.so` compilado con `cargo ndk` (Fase 2). |
+| `shared/.../protocol/RustCoreBridgeContract.kt` | `DummyRustCoreBridge` (`coreVersion`, `selectBestTransport`, `processMusicModePcm`, `computeFrameChecksum`, `encodeFrame`, `validateWireFrame`, `derivePairingPin`) | Implementación pura en Kotlin que replica byte a byte el core Rust 0.2.0 (prioridad de transporte, DSP, CRC32, serialización/validación de tramas y PIN). Sus resultados están fijados por vectores de referencia compartidos con `core-rust/src/lib.rs`. Se usa como respaldo en escritorio y Android cuando no se encuentra el binario nativo. | **Ya reemplazado en ambas plataformas:** `JnaRustCoreBridge` (escritorio) y `JniRustCoreBridge` (Android, IA-007). Se conserva únicamente como respaldo automático cuando el binario no está presente (compilaciones de desarrollo sin `cargo`/NDK) y como referencia de paridad en pruebas. |
 
 ---
 

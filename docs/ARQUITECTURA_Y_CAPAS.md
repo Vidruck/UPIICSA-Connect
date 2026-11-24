@@ -2,7 +2,7 @@
 
 Este documento detalla la organización estructural de **UPIICSA-Connect**, justificando la separación de responsabilidades entre el núcleo de alto rendimiento en **Rust**, la capa común en **Kotlin Multiplatform**, la arquitectura **Ports & Adapters (Hexagonal)** en escritorio (**Windows** y **GNU/Linux**) y el patrón **MVVM** en **Android**.
 
-> Actualizado en la intervención **IA-006** (2026-11-23).
+> Actualizado en la intervención **IA-007** (2026-11-24).
 
 ---
 
@@ -15,7 +15,9 @@ flowchart TB
         AUI["View: AndroidConnectionPanelScreen + 5 pestañas (Compose UPIICSA Light/Dark)"]
         AVM["ViewModel: AndroidConnectionViewModel (StateFlow único)"]
         AMOD["Model: DeviceRepo / PairingRepo / NotificationBridgeRepo / MediaStreamRepo"]
+        AJNI["Model/nativecore: JniRustCoreBridge + AndroidNativeCoreLoader"]
         AACT --> AUI --> AVM --> AMOD
+        AMOD --> AJNI
     end
 
     subgraph Desktop["Módulo Escritorio Windows y GNU/Linux (Ports & Adapters)"]
@@ -64,8 +66,10 @@ flowchart TB
         SC["ui/components (emblema, estado, transporte, tarjetas, medidores, vistas previas)"]
     end
 
-    subgraph RustCore["Core Nativo Rust (core-rust/ 0.2.0)"]
+    subgraph RustCore["Core Nativo Rust (core-rust/ 0.3.0)"]
         FFI["ffi_bridge.rs (C-ABI)"]
+        JNI["jni_bridge.rs (JNI, solo Android)"]
+        JNI --> FFI
         TR["transport.rs (Prioridad USB + UpiicsaFrame + CRC32)"]
         PR["protocol.rs (mensajes tipados)"]
         SD["stream_decoder.rs (reensamblado)"]
@@ -84,6 +88,7 @@ flowchart TB
     TAD --> SB
     APP --> SP
     JNA --> FFI
+    AJNI --> JNI
     SB -.->|"paridad por vectores de referencia"| FFI
     DUI -.-> SC
     AUI -.-> SC
@@ -128,6 +133,7 @@ Las reglas anteriores se verifican automáticamente con `ArchitectureRulesTest` 
    - `AndroidPairingRepository`: deriva el PIN de emparejamiento con `RustCoreBridgeContract.derivePairingPin`.
    - `AndroidNotificationBridgeRepository`: notificaciones activas, resolución recibida desde la PC y flujo de notificaciones nuevas.
    - `AndroidMediaStreamRepository`: Music Mode (cada bloque PCM pasa por el DSP del core), micrófono, cámara y receptor de monitor secundario.
+   - `nativecore/JniRustCoreBridge`: implementación de `RustCoreBridgeContract` sobre `libupiicsa_core_rs.so` (métodos `external` enlazados con `core-rust/src/jni_bridge.rs`, que delega en las mismas funciones de `ffi_bridge.rs`). `AndroidNativeCoreLoader.loadOrDummy()` la carga con `System.loadLibrary` y recurre a `DummyRustCoreBridge` si el APK no incluye el binario (compilaciones debug sin NDK). La fábrica del ViewModel inyecta el resultado en los repositorios, por lo que ViewModel y vistas siguen dependiendo solo del contrato.
 2. **ViewModel (`viewmodel/AndroidConnectionViewModel.kt`):**
    - Expone un único `StateFlow<AndroidConnectionUiState>` (incluye pestaña activa, PIN, telemetría, niveles y bitácora).
    - Administra los `Job` de flujos de sesión y multimedia; se obtiene con `viewModel(factory = AndroidConnectionViewModel.Factory)` para sobrevivir a cambios de configuración.
@@ -216,4 +222,14 @@ Definido de forma centralizada en `shared/src/commonMain/kotlin/mx/ipn/upiicsa/c
 | `cargo test --manifest-path core-rust/Cargo.toml` | 24 pruebas del core (transporte, protocolo, reensamblado, supervisor, jitter, PIN y FFI). |
 | `./gradlew :shared:desktopTest` | Códec y paridad de `DummyRustCoreBridge` con los vectores de Rust. |
 | `./gradlew :desktopApp:buildRustCore :desktopApp:desktopTest` | Servicio de aplicación, puente JNA contra el binario real, reglas de arquitectura y capturas PNG en `desktopApp/build/screenshots/`. |
-| `./gradlew :androidApp:assembleDebug` | Compilación completa del APK debug (sin emulador). |
+| `./gradlew :androidApp:assembleDebug` | Compilación completa del APK debug (sin emulador). Con `-Pupiicsa.buildRustCore=true` compila el core con `cargo ndk` para 4 ABI e incluye `libupiicsa_core_rs.so`. |
+| `bash scripts/verificar-simbolos-jni.sh <lib.so>` | Comprueba que cada `external fun` de `JniRustCoreBridge` tenga su símbolo `Java_…` exportado. |
+
+### 7.1 Integración Continua y Liberación
+
+| Flujo | Disparador | Trabajos |
+| :--- | :--- | :--- |
+| `.github/workflows/ci.yml` | Pull Request hacia `dev`/`master`, push a `dev` | Core Rust (fmt, clippy anfitrión y Android, pruebas, símbolos JNI); pruebas Kotlin en **GNU/Linux** y **Windows** contra el binario nativo; APK debug y lint. |
+| `.github/workflows/release.yml` | Etiqueta `v*` (publica) o manual (solo compila) | `.deb`, `.AppImage`, `.tar.gz` (Ubuntu 22.04); `.msi`, `.zip` (Windows); APK firmado (secretos `UPIICSA_ANDROID_KEYSTORE_B64`, `UPIICSA_KEYSTORE_PASSWORD`, `UPIICSA_KEY_ALIAS`, `UPIICSA_KEY_PASSWORD`); `SHA256SUMS.txt` y liberación con notas de `CHANGELOG.md`. |
+
+Los instaladores de escritorio empaquetan el core mediante `appResources` (tarea `stageRustCore`); en tiempo de ejecución `NativeCoreLoader` busca, en orden: `-Dupiicsa.core.lib.path` / `UPIICSA_CORE_LIB`, la carpeta `compose.application.resources.dir` y la ruta de bibliotecas del sistema.
