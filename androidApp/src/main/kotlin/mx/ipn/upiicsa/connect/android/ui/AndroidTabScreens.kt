@@ -136,6 +136,11 @@ fun EnlaceTab(
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White.copy(alpha = 0.85f)
                 )
+                Text(
+                    text = uiState.coreEngineLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.7f)
+                )
                 if (uiState.pairingPin != null) {
                     Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface) {
                         Column(

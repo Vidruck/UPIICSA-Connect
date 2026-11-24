@@ -99,6 +99,14 @@ El repositorio incluye el **Gradle Wrapper** (`gradlew.bat`), por lo que no es n
 ```
 Las pruebas de escritorio generan capturas PNG de cada sección (modo claro y oscuro) en `desktopApp\build\screenshots\`. El APK queda en `androidApp\build\outputs\apk\debug\`.
 
+### Paso 9 (opcional): Generar el instalador `.msi` e incluir el core en el APK
+```powershell
+.\gradlew.bat :desktopApp:packageMsi
+```
+* El `.msi` queda en `desktopApp\build\compose\binaries\main\msi\` e incluye su propio entorno Java y `upiicsa_core_rs.dll` (tarea `stageRustCore`). Gradle descarga WiX automáticamente la primera vez.
+* Para que el APK use el core nativo vía **JNI**, instale `cargo-ndk` (`cargo install cargo-ndk`), los objetivos Android de Rust (`rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android`), defina `ANDROID_NDK_HOME` y compile con `.\gradlew.bat :androidApp:assembleDebug -Pupiicsa.buildRustCore=true`. Sin esta bandera el APK funciona con la simulación Kotlin.
+* Las liberaciones oficiales no se generan a mano: se producen en GitHub Actions al empujar una etiqueta `v*` (ver la sección *Proceso de Liberación* del `README.md`).
+
 ---
 
 ## 3. Prevención y Solución de Fallas o Errores Comunes

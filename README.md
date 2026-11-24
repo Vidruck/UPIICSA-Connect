@@ -43,15 +43,38 @@ Plataforma multiplataforma de convergencia y continuidad entre equipos de escrit
 - [`docs/CONTRATOS_DUMMY.md`](docs/CONTRATOS_DUMMY.md) — Inventario explícito de contratos dummy y datos hardcodeados para pruebas.
 - [`docs/STACK_E_INSTALACION_WINDOWS.md`](docs/STACK_E_INSTALACION_WINDOWS.md) — Stack técnico requerido, manual de instalación en Windows 10/11 y prevención de errores.
 - [`docs/BITACORA_IA.md`](docs/BITACORA_IA.md) — Bitácora obligatoria de auditoría para toda intervención de Inteligencia Artificial.
+- [`CHANGELOG.md`](CHANGELOG.md) — Registro de cambios y notas de cada liberación.
 
 ---
+
+## Descargas e Instalación
+
+Las versiones compiladas se publican en la sección [*Releases*](https://github.com/Vidruck/UPIICSA-Connect/releases) del repositorio. La versión actual es **`v0.1.0-alpha`** (*pre-release*: interfaz y core reales, servicios del sistema y conexión con el teléfono aún simulados; ver [`CHANGELOG.md`](CHANGELOG.md)).
+
+| Plataforma | Artefacto | Instalación |
+| :--- | :--- | :--- |
+| Debian / Ubuntu | `.deb` | `sudo apt install ./UPIICSA-Connect-<versión>-linux-amd64.deb` |
+| Cualquier GNU/Linux | `.AppImage` o `.tar.gz` | `chmod +x UPIICSA-Connect-<versión>-x86_64.AppImage && ./UPIICSA-Connect-<versión>-x86_64.AppImage` |
+| Windows 10/11 | `.msi` o `.zip` | Ejecutar el `.msi` (instalación por usuario) o extraer el `.zip` y abrir `UPIICSA-Connect.exe`. |
+| Android 8.0+ | `.apk` firmado | Copiar al teléfono e instalar permitiendo orígenes desconocidos. |
+
+Verifique la integridad con `sha256sum -c SHA256SUMS.txt`.
+
+### Proceso de Liberación
+
+1. Integrar los cambios en `dev` mediante Pull Request (la CI de `.github/workflows/ci.yml` debe estar en verde).
+2. Actualizar `CHANGELOG.md` con una sección `## [X.Y.Z]` y las versiones de `desktopApp/build.gradle.kts` y `androidApp/build.gradle.kts`.
+3. Crear y empujar una etiqueta firmada sobre `dev`: `git tag -s vX.Y.Z -m "..." && git push origin vX.Y.Z`.
+4. `.github/workflows/release.yml` compila en GNU/Linux, Windows y Android, firma el APK con los secretos `UPIICSA_*` del repositorio y publica la liberación (las etiquetas con sufijo `-alpha`/`-beta` se marcan como *pre-release*).
+
+Sin publicar, el mismo flujo compila todos los artefactos en cada Pull Request que modifique el empaquetado (`packaging/`, `build.gradle.kts` de las apps, `core-rust/Cargo.toml` o el propio flujo) y puede ejecutarse manualmente desde la pestaña *Actions* una vez que esté en la rama por omisión.
 
 ## Compilación, Ejecución y Pruebas
 
 El repositorio incluye el **Gradle Wrapper 8.10.2**. Requisitos: JDK 17, Android SDK 34 (para configurar los módulos KMP) y Rust estable. En GNU/Linux puede prepararse todo con [`scripts/setup-cloud-env.sh`](scripts/setup-cloud-env.sh); en Windows consulte [`docs/STACK_E_INSTALACION_WINDOWS.md`](docs/STACK_E_INSTALACION_WINDOWS.md).
 
 ```bash
-# Core nativo Rust (24 pruebas, sin dependencias externas)
+# Core nativo Rust (24 pruebas; sin dependencias externas en escritorio)
 cargo test --manifest-path core-rust/Cargo.toml
 
 # Compilar el core como biblioteca compartida y ejecutar el escritorio (lo carga vía JNA)
@@ -61,8 +84,13 @@ cargo test --manifest-path core-rust/Cargo.toml
 # Pruebas Kotlin: códec, paridad con Rust, servicio, reglas de arquitectura y capturas de pantalla
 ./gradlew :shared:desktopTest :desktopApp:desktopTest
 
-# APK debug de Android
+# APK debug de Android (agregue -Pupiicsa.buildRustCore=true para incluir el core vía cargo-ndk)
 ./gradlew :androidApp:assembleDebug
+
+# Instaladores de escritorio del sistema anfitrión (incluyen el core nativo)
+./gradlew :desktopApp:packageDeb          # GNU/Linux
+./gradlew :desktopApp:packageMsi          # Windows
+bash packaging/linux/construir-appimage.sh 0.1.0   # .AppImage (tras createDistributable)
 ```
 
 Las pruebas de escritorio guardan capturas de las 7 secciones en modo claro y oscuro en `desktopApp/build/screenshots/`. Mientras no existan los transportes y drivers reales, los datos en vivo (notificaciones, audio, cámara, latidos) provienen de simuladores documentados en [`docs/CONTRATOS_DUMMY.md`](docs/CONTRATOS_DUMMY.md).

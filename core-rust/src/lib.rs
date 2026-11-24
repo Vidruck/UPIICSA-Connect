@@ -2,6 +2,8 @@
 
 pub mod audio_jitter;
 pub mod ffi_bridge;
+#[cfg(target_os = "android")]
+pub mod jni_bridge;
 pub mod link_supervisor;
 pub mod pairing;
 pub mod protocol;
@@ -119,7 +121,7 @@ mod tests {
     /// Comprueba las nuevas funciones FFI de serialización, validación, versión y PIN de emparejamiento.
     #[test]
     fn prueba_puente_ffi_tramas_y_emparejamiento() {
-        assert_eq!(upiicsa_core_version(), 0x00_02_00);
+        assert_eq!(upiicsa_core_version(), 0x00_03_00);
 
         let payload = b"UPIICSA";
         let mut out = [0_u8; 64];

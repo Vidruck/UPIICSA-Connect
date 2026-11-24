@@ -221,14 +221,33 @@ object NativeCoreLoader {
      */
     const val LIBRARY_PATH_ENV = "UPIICSA_CORE_LIB"
 
+    /**
+     * Propiedad que Compose Desktop define con la carpeta de recursos empaquetados de la app (incluye el binario del core).
+     */
+    const val APP_RESOURCES_PROPERTY = "compose.application.resources.dir"
+
     private const val LIBRARY_NAME = "upiicsa_core_rs"
 
     /**
+     * Nombre del archivo del binario nativo según el sistema operativo anfitrión.
+     */
+    fun nativeLibraryFileName(): String {
+        val os = System.getProperty("os.name").lowercase()
+        return when {
+            os.contains("win") -> "$LIBRARY_NAME.dll"
+            os.contains("mac") -> "lib$LIBRARY_NAME.dylib"
+            else -> "lib$LIBRARY_NAME.so"
+        }
+    }
+
+    /**
      * Intenta cargar el binario nativo y devuelve `null` si no se encuentra o no es compatible.
+     * Orden de búsqueda: ruta explícita, recursos empaquetados de la app y finalmente la ruta de bibliotecas del sistema.
      */
     fun loadNativeOrNull(): RustCoreBridgeContract? {
         val explicitPath = System.getProperty(LIBRARY_PATH_PROPERTY) ?: System.getenv(LIBRARY_PATH_ENV)
-        val target = explicitPath?.takeIf { File(it).isFile } ?: LIBRARY_NAME
+        val bundledPath = System.getProperty(APP_RESOURCES_PROPERTY)?.let { File(it, nativeLibraryFileName()).path }
+        val target = listOfNotNull(explicitPath, bundledPath).firstOrNull { File(it).isFile } ?: LIBRARY_NAME
         return try {
             JnaRustCoreBridge(Native.load(target, UpiicsaCoreLibrary::class.java))
         } catch (error: UnsatisfiedLinkError) {

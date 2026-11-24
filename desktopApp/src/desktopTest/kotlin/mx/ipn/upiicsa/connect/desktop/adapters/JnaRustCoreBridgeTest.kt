@@ -28,7 +28,7 @@ class JnaRustCoreBridgeTest {
         }
         val dummy = DummyRustCoreBridge()
         assertTrue(native.isNativeBacked)
-        assertEquals("0.2.0", native.coreVersion())
+        assertEquals("0.3.0", native.coreVersion())
         assertEquals(TransportType.USB_CABLE, native.selectBestTransport(true, true, false))
         assertEquals(TransportType.BLUETOOTH, native.selectBestTransport(false, false, true))
         assertEquals(2_972_122_761L, native.computeFrameChecksum("UPIICSA".encodeToByteArray(), 2, 7))

@@ -13,6 +13,16 @@ val nativeCoreFileName = when {
     else -> "libupiicsa_core_rs.so"
 }
 val nativeCoreLibrary = rustCoreDir.file("target/release/$nativeCoreFileName").asFile
+val hostResourceFolder = run {
+    val os = System.getProperty("os.name").lowercase()
+    val arch = if (System.getProperty("os.arch").lowercase().contains("aarch64")) "arm64" else "x64"
+    when {
+        os.contains("win") -> "windows-$arch"
+        os.contains("mac") -> "macos-$arch"
+        else -> "linux-$arch"
+    }
+}
+val nativeResourcesRoot = layout.buildDirectory.dir("nativeResources")
 
 kotlin {
     jvm("desktop")
@@ -44,7 +54,20 @@ tasks.register<Exec>("buildRustCore") {
     commandLine("cargo", "build", "--release")
 }
 
+val stageRustCore = tasks.register<Copy>("stageRustCore") {
+    group = "upiicsa"
+    description = "Copia el binario de core-rust a los recursos de la app para empaquetarlo en .deb / .msi / distribuible."
+    dependsOn("buildRustCore")
+    from(nativeCoreLibrary)
+    into(nativeResourcesRoot.map { it.dir(hostResourceFolder) })
+}
+
+tasks.matching { it.name == "prepareAppResources" }.configureEach {
+    dependsOn(stageRustCore)
+}
+
 tasks.withType<Test>().configureEach {
+    systemProperty("java.awt.headless", "true")
     systemProperty("upiicsa.core.lib.path", nativeCoreLibrary.absolutePath)
     systemProperty("upiicsa.screenshots.dir", layout.buildDirectory.dir("screenshots").get().asFile.absolutePath)
     systemProperty("upiicsa.sources.dir", layout.projectDirectory.dir("src/desktopMain/kotlin").asFile.absolutePath)
@@ -53,14 +76,34 @@ tasks.withType<Test>().configureEach {
 compose.desktop {
     application {
         mainClass = "mx.ipn.upiicsa.connect.desktop.bootstrap.DesktopApplicationKt"
-        jvmArgs += listOf("-Dupiicsa.core.lib.path=${nativeCoreLibrary.absolutePath}")
 
         nativeDistributions {
             targetFormats(TargetFormat.Deb, TargetFormat.Msi)
             packageName = "UPIICSA-Connect"
-            packageVersion = "1.0.0"
+            packageVersion = "0.1.0"
             description = "Convergencia PC - Android UPIICSA-IPN"
             vendor = "Equipo UPIICSA-Connect"
+            copyright = "Todos los derechos reservados al equipo desarrollador."
+            appResourcesRootDir.set(nativeResourcesRoot)
+            modules("java.instrument", "java.management", "java.naming", "jdk.unsupported")
+
+            linux {
+                packageName = "upiicsa-connect"
+                shortcut = true
+                menuGroup = "Network"
+                appCategory = "net"
+                iconFile.set(rootProject.file("packaging/icons/upiicsa-connect.png"))
+            }
+
+            windows {
+                menu = true
+                menuGroup = "UPIICSA-Connect"
+                shortcut = true
+                perUserInstall = true
+                dirChooser = true
+                upgradeUuid = "6f3d2a8e-5b1c-4e7a-9c42-0d8b7e1f5a63"
+                iconFile.set(rootProject.file("packaging/icons/upiicsa-connect.ico"))
+            }
         }
     }
 }

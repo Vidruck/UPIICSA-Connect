@@ -2,7 +2,7 @@
 
 Este documento controla el avance real del proyecto **UPIICSA-Connect**, detalla los entregables de cada fase y establece el porcentaje verificado de cumplimiento. Toda modificación al código fuente o a los contratos debe reflejarse aquí conforme a [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
-> **Última actualización:** 2026-11-23 — intervención **IA-006** (ver [`BITACORA_IA.md`](BITACORA_IA.md)).
+> **Última actualización:** 2026-11-24 — intervención **IA-007** (ver [`BITACORA_IA.md`](BITACORA_IA.md)). Primera liberación: **`v0.1.0-alpha`** (ver [`CHANGELOG.md`](../CHANGELOG.md)).
 
 ---
 
@@ -11,13 +11,13 @@ Este documento controla el avance real del proyecto **UPIICSA-Connect**, detalla
 | Fase | Nombre de la Fase | Estado | Cumplimiento |
 | :--- | :--- | :--- | :---: |
 | **Fase 1** | Cimientos, Gobernanza, Arquitectura Base, Tema UPIICSA y Contratos | **Completada** | **100%** |
-| **Fase 2** | Core Nativo Rust (Transporte Priorizado, Framing CRC32, Protocolo y DSP *Music Mode*) | **En Progreso (Core 0.2.0 con protocolo, reensamblado, supervisor y jitter; binding JNA en escritorio verificado; JNI Android y códecs pendientes)** | **80%** |
+| **Fase 2** | Core Nativo Rust (Transporte Priorizado, Framing CRC32, Protocolo y DSP *Music Mode*) | **En Progreso (Core 0.3.0; binding JNA en escritorio y JNI en Android empaquetados en los instaladores; códecs Opus/H.264 pendientes)** | **90%** |
 | **Fase 3** | Conectividad Real USB (AOAv2/ADB) y Fallback Inalámbrico (Wi-Fi/Bluetooth) | **En Progreso (Protocolo tipado, reensamblado de flujo, conmutación por latidos y PIN dummy listos; sockets/USB nativos pendientes)** | **40%** |
 | **Fase 4** | Resolución de Notificaciones y Portapapeles Bidireccional | **En Progreso (Flujo extremo a extremo con eventos simulados, códec y UIs completas; DBus/WinRT/Listener real pendientes)** | **45%** |
 | **Fase 5** | Music Mode y Cámara/Micrófono Virtual para Videollamadas | **En Progreso (Cadena PCM -> DSP -> sumidero con niveles en vivo, jitter buffer y vistas previas; drivers PipeWire/v4l2/WASAPI/DirectShow pendientes)** | **40%** |
-| **Fase 6** | Monitor Secundario (Tablet/Android), Pruebas Integrales E2E y Empaquetado | **En Progreso (Configuración y vista previa del monitor, envío de cuadros por vsync, suite de pruebas automatizadas, APK debug y empaquetado declarado)** | **30%** |
+| **Fase 6** | Monitor Secundario (Tablet/Android), Pruebas Integrales E2E y Empaquetado | **En Progreso (CI en GNU/Linux, Windows y Android; liberación automatizada `.deb`/`.AppImage`/`.msi`/portables/APK firmado; drivers de pantalla y E2E con dispositivos pendientes)** | **45%** |
 
-**Avance Global (promedio simple de las 6 fases):** **56%** (antes 43%).
+**Avance Global (promedio simple de las 6 fases):** **60%** (antes 56%).
 
 ---
 
@@ -35,7 +35,7 @@ Este documento controla el avance real del proyecto **UPIICSA-Connect**, detalla
 - [x] *(IA-006)* Gradle Wrapper 8.10.2 versionado (`gradlew`, `gradlew.bat`) y script de entorno GNU/Linux (`scripts/setup-cloud-env.sh`).
 - [x] *(IA-006)* Sistema visual ampliado: tipografía, formas, colores semánticos y biblioteca de componentes Compose compartidos (`shared/.../ui/components/`).
 
-### Fase 2: Core Nativo Rust (Señales y Conectividad) — **80% Completada**
+### Fase 2: Core Nativo Rust (Señales y Conectividad) — **90% Completada**
 - [x] Crate `core-rust` sin dependencias externas (`std`) para compilación determinista y segura.
 - [x] Multiplexor de transporte (`transport.rs`) con regla de prioridad: **Cable USB (Opción 1)** sobre **Wi-Fi / Bluetooth (Opción 2)**.
 - [x] Empaquetado binario `UpiicsaFrame` con verificación de integridad CRC32 para los canales de servicio.
@@ -46,7 +46,8 @@ Este documento controla el avance real del proyecto **UPIICSA-Connect**, detalla
 - [x] *(IA-006)* Nuevas funciones FFI: `upiicsa_core_version`, `upiicsa_encode_frame`, `upiicsa_validate_wire_frame`, `upiicsa_derive_pairing_pin` (crate 0.2.0).
 - [x] *(IA-006)* Artefacto `.so` / `.dll` cargado en tiempo de ejecución desde JVM Desktop vía **JNA** (`JnaRustCoreBridge`), con prueba de paridad contra la simulación Kotlin.
 - [x] *(IA-006)* Pruebas: 24 pruebas unitarias en Rust, `clippy -D warnings` y `rustfmt` sin observaciones.
-- [ ] Binding **JNI** en Android (`cargo ndk` -> `jniLibs` + `JniRustCoreBridge`).
+- [x] *(IA-007)* Binding **JNI** en Android: `core-rust/src/jni_bridge.rs` (solo `target_os = "android"`, crate `jni` 0.21) + `JniRustCoreBridge` / `AndroidNativeCoreLoader`; `cargo ndk` (arm64-v8a, armeabi-v7a, x86, x86_64) integrado en Gradle con `-Pupiicsa.buildRustCore=true` y verificación automática de símbolos (`scripts/verificar-simbolos-jni.sh`). Crate 0.3.0.
+- [x] *(IA-007)* El binario del core se empaqueta en los instaladores de escritorio (`appResources`) y `NativeCoreLoader` lo localiza en `compose.application.resources.dir`.
 - [ ] Códec Opus embebido y compresión H.264/HEVC por hardware para flujos de video de alta tasa de cuadros.
 
 ### Fase 3: Conectividad Real USB y Wi-Fi / Bluetooth — **40% Completada**
@@ -83,7 +84,7 @@ Este documento controla el avance real del proyecto **UPIICSA-Connect**, detalla
 - [ ] Reproducción nativa en tarjeta de sonido PC vía **PipeWire / PulseAudio** (GNU/Linux) y **WASAPI** (Windows).
 - [ ] Creación de dispositivo virtual `/dev/video*` (`v4l2loopback`) en Linux y fuente virtual MediaFoundation/DirectShow en Windows usando `CameraX` + `AudioRecord` desde Android.
 
-### Fase 6: Monitor Secundario, Pruebas E2E y Empaquetado — **30% Completada**
+### Fase 6: Monitor Secundario, Pruebas E2E y Empaquetado — **45% Completada**
 - [x] Modelos `SecondaryDisplayConfig`, puertos `OsVirtualDisplayOutboundPort` y adaptadores `LinuxVirtualDisplayAdapter` / `WindowsIddCxDisplayAdapter`.
 - [x] *(IA-006)* Pantalla de Monitor Secundario con vista previa, resolución (1280×800 / 1920×1080 / 2560×1600), tasa (30/60/90 fps) y retorno táctil; envío de cuadros por señal `DisplayVsync`.
 - [x] *(IA-006)* Suite automatizada: 9 pruebas `shared` (códec y paridad con Rust), 12 pruebas de escritorio (servicio, JNA nativo, **reglas de arquitectura** y **capturas fuera de pantalla** claro/oscuro de las 7 secciones).
@@ -91,7 +92,10 @@ Este documento controla el avance real del proyecto **UPIICSA-Connect**, detalla
 - [x] *(IA-006)* Distribuciones nativas declaradas en `desktopApp` (`.deb` y `.msi`).
 - [ ] Integración con driver virtual de pantalla (**EVDI / PipeWire Virtual Screen** en Linux; **IddCx** en Windows).
 - [ ] Decodificación y renderizado táctil a pantalla completa en tablet/teléfono Android con retorno de eventos táctiles/lápiz al escritorio.
-- [ ] Pruebas E2E entre dispositivos físicos, `.AppImage` y firma de `.apk` de liberación.
+- [x] *(IA-007)* Integración continua (`.github/workflows/ci.yml`): core Rust (fmt, clippy, pruebas, clippy y símbolos JNI para Android), pruebas Kotlin en **GNU/Linux y Windows** con el binario nativo, APK debug y lint de Android.
+- [x] *(IA-007)* Liberación automatizada (`.github/workflows/release.yml`) por etiqueta `v*`: `.deb`, `.AppImage`, `.tar.gz` (GNU/Linux), `.msi`, `.zip` (Windows), **APK firmado** con almacén en secretos del repositorio y `SHA256SUMS.txt`.
+- [x] *(IA-007)* Íconos de instaladores (`packaging/icons/`) y entrada de escritorio GNU/Linux; pruebas de escritorio en modo `headless` (sin servidor X).
+- [ ] Pruebas E2E entre dispositivos físicos (teléfono/tablet reales) y prueba de humo de la app Android en dispositivo.
 
 ---
 
@@ -105,6 +109,23 @@ Este documento controla el avance real del proyecto **UPIICSA-Connect**, detalla
 | Prioridad USB (1ª) sobre Wi-Fi/BT (2ª) | **Cumple** | `transport.rs`, `link_supervisor.rs`, `DesktopSessionAggregate.kt` y pruebas |
 | Tema UPIICSA-IPN Light y Dark adaptable | **Cumple** | `UpiicsaTheme.kt` + capturas `desktopApp/build/screenshots/*-{light,dark}.png` |
 | Comentarios en español solo por clase/función + etiquetas dummy/técnicas | **Cumple** | Auditoría automatizada de declaraciones sin bloque doc y de comentarios en línea (IA-006) |
-| Pruebas unitarias del core Rust (`cargo test`) | **Cumple** | 24 pruebas, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` |
+| Pruebas unitarias del core Rust (`cargo test`) | **Cumple** | 24 pruebas, `cargo clippy --all-targets -- -D warnings` (anfitrión y `aarch64-linux-android`), `cargo fmt --check` |
 | Pruebas Kotlin (`./gradlew :shared:desktopTest :desktopApp:desktopTest`) | **Cumple** | 21 pruebas en verde |
-| Compilación Android (`./gradlew :androidApp:assembleDebug`) | **Cumple** | APK debug generado; no se ejecutó en emulador ni dispositivo |
+| Compilación Android (`./gradlew :androidApp:assembleDebug`) | **Cumple** | APK debug y de liberación firmado con `libupiicsa_core_rs.so` en 4 ABI; lint sin errores; no se ejecutó en emulador ni dispositivo |
+| Instaladores con core nativo | **Cumple** | `.deb`/`.AppImage` verificados localmente (binario incluido y cargado: `native=true version=0.3.0`); `.msi` verificado en el runner Windows de CI |
+
+---
+
+## Hoja de Ruta de Pendientes por Versión
+
+Ordena los entregables aún sin marcar (`[ ]`) en versiones incrementales. Cada versión se libera con una etiqueta `vX.Y.Z[-alpha|-beta]` sobre `dev` (ver `.github/workflows/release.yml`). Los simuladores (`DummyPhoneEventStreamAdapter`, repositorios Android) se conservan como modo por omisión hasta que el reemplazo real se verifique.
+
+| Versión | Fase(s) | Entregables | Puertos / Adaptadores / Repositorios afectados | Criterio de verificación |
+| :--- | :--- | :--- | :--- | :--- |
+| **v0.1.0-alpha** *(liberada en IA-007)* | 2, 6 | Binding JNI en Android, core nativo empaquetado, CI y liberación automatizada multiplataforma, APK firmado. | `JniRustCoreBridge`, `NativeCoreLoader`, `desktopApp/build.gradle.kts`, `.github/workflows/*` | CI en verde; artefactos publicados con `SHA256SUMS.txt`. |
+| **v0.2.0** | 3 | Enlace real por TCP: servidor en escritorio, túnel USB con `adb reverse`, cliente en Android; integración de `FrameStreamDecoder` y `LinkSupervisor` (latidos y conmutación); saludo con versión de protocolo; descubrimiento mDNS/NSD en LAN. | `DeviceTransportOutboundPort` (nuevo `TcpLinkServerAdapter`, `AdbReverseTunnelAdapter`), `PhoneEventStreamOutboundPort` (`SocketPhoneEventStreamAdapter`), `AndroidDeviceRepository` (+ `AndroidSocketLinkRepository`) | Prueba E2E en bucle local JVM (escritorio + cliente que actúa como teléfono): saludo, PIN, latidos, notificación, respuesta, portapapeles y desconexión; prueba manual con teléfono físico por USB. |
+| **v0.3.0** | 4 | Portapapeles real (`wl-clipboard`/`xclip`, Win32 vía JNA, `ClipboardManager`) y notificaciones reales (D-Bus `org.freedesktop.Notifications`, toasts WinRT, `NotificationListenerService` + `RemoteInput`/`PendingIntent`). | `OsClipboardOutboundPort`, `OsNotificationOutboundPort` (adaptadores Linux y Windows), `AndroidNotificationBridgeRepository` | Pruebas con ejecutor de procesos simulado; viaje de ida y vuelta real del portapapeles en GNU/Linux y en el runner Windows; validación manual en dispositivo físico. |
+| **v0.4.0** | 3 (seguridad) | Emparejamiento criptográfico ECDH + SAS (sustituye el PIN CRC32 dummy), mTLS sobre TCP, identificador por instalación en Android Keystore, respaldo Bluetooth RFCOMM/L2CAP. | `pairing.rs`, `RustCoreBridgeContract`, `AndroidPairingRepository`, adaptadores de transporte | Vectores de prueba del intercambio en Rust y Kotlin; rechazo de pares no emparejados; prueba manual Bluetooth con dispositivo. |
+| **v0.5.0** | 5 | *Music Mode* real (`AudioPlaybackCaptureConfiguration` en Android; reproducción PipeWire/`javax.sound` y WASAPI en escritorio), códec Opus, cámara/micrófono virtual (`v4l2loopback` + nodo PipeWire; fuente virtual MediaFoundation). | `OsAudioSinkOutboundPort`, `OsVirtualCameraMicOutboundPort`, `AndroidMediaStreamRepository`, `signal_dsp.rs` | Reproducción audible del tono del simulador; latencia medida con `PcmJitterBuffer`; dispositivo `/dev/video*` visible en GNU/Linux. |
+| **v0.6.0** | 6 | Monitor secundario real (EVDI / PipeWire ScreenCast en GNU/Linux; IddCx + Desktop Duplication en Windows), codificación H.264/HEVC por hardware, decodificación `MediaCodec` a pantalla completa y retorno táctil/lápiz. | `OsVirtualDisplayOutboundPort`, `AndroidMediaStreamRepository` | Cuadros a 60 fps en tablet física; latencia extremo a extremo < 50 ms por USB. |
+| **v1.0.0** | 6 | Pruebas E2E con dispositivos físicos, R8/minificación del APK, firma de código del `.msi`, publicación del `.AppImage` con actualización delta y revisión completa de seguridad. | Todos | Lista de verificación E2E firmada por el equipo; liberación estable (no *pre-release*). |
