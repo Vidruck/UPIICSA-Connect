@@ -1,0 +1,164 @@
+# Liberación de UPIICSA-Connect: instaladores de escritorio (GNU/Linux y Windows) y APK firmado de Android.
+# - Al empujar una etiqueta v* se compilan todos los artefactos y se publica la liberación en GitHub.
+# - Ejecutado manualmente (workflow_dispatch) solo compila y sube los artefactos al run, sin publicar.
+name: Liberación
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  APP_VERSION: "0.1.0"
+
+jobs:
+  linux:
+    name: Escritorio GNU/Linux (.deb, .AppImage, .tar.gz)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Empaquetar .deb y distribuible
+        run: ./gradlew --no-configuration-cache :desktopApp:packageDeb :desktopApp:createDistributable
+      - name: Construir .AppImage
+        run: bash packaging/linux/construir-appimage.sh "$APP_VERSION" dist
+      - name: Reunir artefactos
+        run: |
+          mkdir -p dist
+          cp desktopApp/build/compose/binaries/main/deb/*.deb "dist/UPIICSA-Connect-$APP_VERSION-linux-amd64.deb"
+          tar -C desktopApp/build/compose/binaries/main/app -czf "dist/UPIICSA-Connect-$APP_VERSION-linux-x64.tar.gz" UPIICSA-Connect
+          dpkg-deb -c dist/*.deb | grep -q "resources/libupiicsa_core_rs.so"
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: escritorio-linux
+          path: dist/*
+          if-no-files-found: error
+
+  windows:
+    name: Escritorio Windows (.msi, .zip)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Empaquetar .msi y distribuible
+        shell: pwsh
+        run: ./gradlew.bat --no-configuration-cache :desktopApp:packageMsi :desktopApp:createDistributable
+      - name: Reunir artefactos
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $app = "desktopApp/build/compose/binaries/main/app/UPIICSA-Connect"
+          if (-not (Test-Path "$app/app/resources/upiicsa_core_rs.dll")) { throw "El distribuible no incluye upiicsa_core_rs.dll" }
+          Copy-Item (Get-ChildItem desktopApp/build/compose/binaries/main/msi/*.msi | Select-Object -First 1).FullName "dist/UPIICSA-Connect-$env:APP_VERSION-windows-x64.msi"
+          Compress-Archive -Path $app -DestinationPath "dist/UPIICSA-Connect-$env:APP_VERSION-windows-x64.zip"
+          Get-ChildItem dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: escritorio-windows
+          path: dist/*
+          if-no-files-found: error
+
+  android:
+    name: Android (APK de liberación firmado)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, armv7-linux-androideabi, i686-linux-android, x86_64-linux-android
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Instalar cargo-ndk
+        run: cargo install cargo-ndk --locked
+      - name: Restaurar almacén de claves
+        env:
+          KEYSTORE_B64: ${{ secrets.UPIICSA_ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+              echo "::error::Falta el secreto UPIICSA_ANDROID_KEYSTORE_B64; no se publica un APK sin firmar."
+              exit 1
+            fi
+            echo "::warning::Sin almacén de claves: se generará un APK de liberación sin firmar (solo prueba)."
+            exit 0
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upiicsa-release.jks"
+          echo "UPIICSA_KEYSTORE_PATH=$RUNNER_TEMP/upiicsa-release.jks" >> "$GITHUB_ENV"
+      - name: Compilar APK de liberación con el core nativo
+        env:
+          UPIICSA_KEYSTORE_PASSWORD: ${{ secrets.UPIICSA_KEYSTORE_PASSWORD }}
+          UPIICSA_KEY_ALIAS: ${{ secrets.UPIICSA_KEY_ALIAS }}
+          UPIICSA_KEY_PASSWORD: ${{ secrets.UPIICSA_KEY_PASSWORD }}
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          ./gradlew --no-configuration-cache :androidApp:assembleRelease -Pupiicsa.buildRustCore=true
+      - name: Verificar símbolos JNI, firma y reunir artefacto
+        run: |
+          bash scripts/verificar-simbolos-jni.sh androidApp/build/generated/jniLibs/arm64-v8a/libupiicsa_core_rs.so
+          mkdir -p dist
+          APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner"
+          if [ -n "${UPIICSA_KEYSTORE_PATH:-}" ]; then
+            cp androidApp/build/outputs/apk/release/androidApp-release.apk "dist/UPIICSA-Connect-$APP_VERSION-alpha.apk"
+            "$APKSIGNER" verify --print-certs "dist/UPIICSA-Connect-$APP_VERSION-alpha.apk"
+          else
+            cp androidApp/build/outputs/apk/release/androidApp-release-unsigned.apk "dist/UPIICSA-Connect-$APP_VERSION-alpha-sin-firmar.apk"
+          fi
+          unzip -l dist/*.apk | grep -q "lib/arm64-v8a/libupiicsa_core_rs.so"
+          rm -f "$RUNNER_TEMP/upiicsa-release.jks"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist/*
+          if-no-files-found: error
+
+  publicar:
+    name: Publicar liberación en GitHub
+    if: github.ref_type == 'tag'
+    needs: [linux, windows, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artefactos
+          merge-multiple: true
+      - name: Sumas SHA-256
+        working-directory: artefactos
+        run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Extraer notas de la versión desde CHANGELOG.md
+        run: |
+          awk -v tag="${GITHUB_REF_NAME}" '
+            $0 ~ "^## \\[" substr(tag, 2) "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > notas.md
+          test -s notas.md
+      - name: Crear liberación
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PRERELEASE=""
+          case "${GITHUB_REF_NAME}" in *-*) PRERELEASE="--prerelease" ;; esac
+          gh release create "${GITHUB_REF_NAME}" artefactos/* \
+            --title "UPIICSA-Connect ${GITHUB_REF_NAME}" \
+            --notes-file notas.md \
+            --verify-tag $PRERELEASE
