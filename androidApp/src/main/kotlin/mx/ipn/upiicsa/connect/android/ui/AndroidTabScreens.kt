@@ -35,6 +35,9 @@ import androidx.compose.material.icons.rounded.SignalCellularAlt
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material.icons.rounded.Videocam
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -52,6 +55,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -301,10 +305,17 @@ fun AvisosTab(
                 accent = MaterialTheme.colorScheme.tertiary
             )
             Text(
-                text = "Las acciones de cada tarjeta simulan la orden que enviaría el ordenador por el canal de notificaciones.",
+                text = if (uiState.useRealLink) {
+                    "Las acciones de cada tarjeta se aplican sobre la notificación real del teléfono, igual que las órdenes de la PC."
+                } else {
+                    "Las acciones de cada tarjeta simulan la orden que enviaría el ordenador por el canal de notificaciones."
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+        if (uiState.useRealLink) {
+            NotificationAccessCard(granted = uiState.notificationAccessGranted)
         }
         if (uiState.notifications.isEmpty()) {
             EmptyStatePlaceholder(Icons.Rounded.NotificationsActive, "Sin notificaciones", "Las notificaciones capturadas aparecerán aquí.")
@@ -315,6 +326,35 @@ fun AvisosTab(
                 onResolve = onSimulateResolution,
                 replyPlaceholder = "Simular respuesta desde la PC"
             )
+        }
+    }
+}
+
+/**
+ * Tarjeta que indica si Android concedió el acceso a notificaciones y abre sus ajustes cuando falta.
+ */
+@Composable
+private fun NotificationAccessCard(granted: Boolean) {
+    val context = LocalContext.current
+    SectionCard(title = "Acceso a notificaciones", icon = Icons.Rounded.NotificationsActive, accent = MaterialTheme.colorScheme.tertiary) {
+        Text(
+            text = if (granted) {
+                "Concedido: las notificaciones reales del teléfono se espejan en el ordenador."
+            } else {
+                "Sin acceso: Android no permite leer las notificaciones. Concédelo para espejarlas y responderlas desde la PC."
+            },
+            style = MaterialTheme.typography.bodyMedium
+        )
+        if (!granted) {
+            Button(onClick = {
+                try {
+                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                } catch (error: ActivityNotFoundException) {
+                    context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+            }) {
+                Text("Abrir ajustes de acceso")
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 package mx.ipn.upiicsa.connect.android.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -16,6 +17,9 @@ import mx.ipn.upiicsa.connect.android.model.AndroidMediaStreamRepository
 import mx.ipn.upiicsa.connect.android.model.AndroidNotificationBridgeRepository
 import mx.ipn.upiicsa.connect.android.model.AndroidPairingRepository
 import mx.ipn.upiicsa.connect.android.model.AndroidSocketLinkRepository
+import mx.ipn.upiicsa.connect.android.model.AndroidSystemClipboardRepository
+import mx.ipn.upiicsa.connect.android.model.AndroidSystemNotificationRepository
+import mx.ipn.upiicsa.connect.android.model.NotificationBridgeSource
 import mx.ipn.upiicsa.connect.android.model.DesktopLinkEvent
 import mx.ipn.upiicsa.connect.android.model.nativecore.AndroidNativeCoreLoader
 import mx.ipn.upiicsa.connect.shared.model.ActivityCategory
@@ -67,6 +71,7 @@ data class AndroidConnectionUiState(
     val activityLog: List<ActivityLogEntry> = emptyList(),
     val coreEngineLabel: String = "",
     val useRealLink: Boolean = false,
+    val notificationAccessGranted: Boolean = false,
     val statusMessage: String = "Listo para enlazar con ordenador Windows o GNU/Linux"
 ) {
     /**
@@ -85,6 +90,8 @@ class AndroidConnectionViewModel(
     private val mediaStreamRepository: AndroidMediaStreamRepository,
     private val pairingRepository: AndroidPairingRepository,
     private val socketLinkRepository: AndroidSocketLinkRepository,
+    private val systemNotificationRepository: AndroidSystemNotificationRepository? = null,
+    private val systemClipboardRepository: AndroidSystemClipboardRepository? = null,
     private val clock: () -> Long = System::currentTimeMillis
 ) : ViewModel() {
 
@@ -95,6 +102,7 @@ class AndroidConnectionViewModel(
     private var musicJob: Job? = null
     private var microphoneJob: Job? = null
     private var frameJob: Job? = null
+    private var lastClipboardFromDesktop: String? = null
 
     init {
         cargarEstadoInicial()
@@ -111,7 +119,7 @@ class AndroidConnectionViewModel(
             } else {
                 deviceRepository.scanAvailableDesktops()
             }
-            val notifs = notificationRepository.loadActiveNotifications()
+            val notifs = notificationSource().loadActiveNotifications()
             _uiState.update { state ->
                 state.copy(
                     availableDesktops = desktops,
@@ -120,6 +128,19 @@ class AndroidConnectionViewModel(
                     status = if (state.connectedDesktop != null) ConnectionStatus.CONNECTED else ConnectionStatus.DISCONNECTED,
                     statusMessage = if (state.connectedDesktop != null) state.statusMessage else "${desktops.size} ordenador(es) disponible(s)"
                 )
+            }
+        }
+    }
+
+    /**
+     * Actualiza si el usuario concedió el acceso a notificaciones (al volver de los ajustes de Android).
+     */
+    fun refreshSystemAccess() {
+        val granted = systemNotificationRepository?.isAccessGranted() == true
+        if (granted != _uiState.value.notificationAccessGranted) {
+            _uiState.update { it.copy(notificationAccessGranted = granted) }
+            if (_uiState.value.useRealLink) {
+                cargarEstadoInicial()
             }
         }
     }
@@ -237,7 +258,7 @@ class AndroidConnectionViewModel(
      */
     fun simulateResolveFromDesktop(action: NotificationResolutionAction) {
         viewModelScope.launch {
-            val updated = notificationRepository.resolveNotificationFromDesktop(action)
+            val updated = notificationSource().resolveNotificationFromDesktop(action)
             _uiState.update { state ->
                 state.copy(
                     notifications = updated,
@@ -444,7 +465,7 @@ class AndroidConnectionViewModel(
                 if (_uiState.value.featureToggles.syncNotifications) {
                     _uiState.value.notifications.filterNot { it.isResolved }.forEach { socketLinkRepository.publishNotification(it) }
                 }
-                notificationRepository.incomingNotifications().collect { item ->
+                notificationSource().incomingNotifications().collect { item ->
                     if (_uiState.value.featureToggles.syncNotifications) {
                         socketLinkRepository.publishNotification(item)
                         _uiState.update { state ->
@@ -454,8 +475,35 @@ class AndroidConnectionViewModel(
                     }
                 }
             }
-        )
+        ) + listOfNotNull(systemClipboardRepository?.let { clipboard ->
+            viewModelScope.launch {
+                clipboard.changes().collect { text -> publishPhoneClipboardChange(text) }
+            }
+        })
     }
+
+    /**
+     * Envía al ordenador el texto copiado en el teléfono, salvo que sea el mismo que acaba de llegar desde la PC.
+     */
+    private suspend fun publishPhoneClipboardChange(text: String) {
+        val state = _uiState.value
+        if (!state.featureToggles.syncClipboard || text == lastClipboardFromDesktop || text == state.clipboardText) {
+            return
+        }
+        socketLinkRepository.publishClipboard(text)
+        _uiState.update { current ->
+            current.copy(
+                clipboardText = text,
+                clipboardHistory = (listOf(ClipboardHistoryEntry(text, fromMobile = true, epochMillis = clock())) + current.clipboardHistory).take(8)
+            ).withLog(ActivityCategory.CLIPBOARD, "Copia del teléfono enviada al ordenador (${text.length} caracteres)")
+        }
+    }
+
+    /**
+     * Fuente de notificaciones vigente: la del sistema con el enlace real (si existe) y la simulada en otro caso.
+     */
+    private fun notificationSource(): NotificationBridgeSource =
+        systemNotificationRepository?.takeIf { _uiState.value.useRealLink } ?: notificationRepository
 
     /**
      * Aplica al estado un evento recibido del ordenador por el enlace real.
@@ -465,18 +513,24 @@ class AndroidConnectionViewModel(
             is DesktopLinkEvent.Hello -> _uiState.update { state ->
                 state.copy(pairingPin = event.pairingPin).withLog(ActivityCategory.CONNECTION, "Saludo recibido de ${event.desktopName}")
             }
-            is DesktopLinkEvent.ClipboardFromDesktop -> _uiState.update { state ->
-                if (!state.featureToggles.syncClipboard) {
-                    state
-                } else {
-                    state.copy(
-                        clipboardText = event.text,
-                        clipboardHistory = (listOf(ClipboardHistoryEntry(event.text, fromMobile = false, epochMillis = clock())) + state.clipboardHistory).take(8)
-                    ).withLog(ActivityCategory.CLIPBOARD, "Texto recibido del ordenador")
+            is DesktopLinkEvent.ClipboardFromDesktop -> {
+                if (_uiState.value.featureToggles.syncClipboard) {
+                    lastClipboardFromDesktop = event.text
+                    systemClipboardRepository?.write(event.text)
+                }
+                _uiState.update { state ->
+                    if (!state.featureToggles.syncClipboard) {
+                        state
+                    } else {
+                        state.copy(
+                            clipboardText = event.text,
+                            clipboardHistory = (listOf(ClipboardHistoryEntry(event.text, fromMobile = false, epochMillis = clock())) + state.clipboardHistory).take(8)
+                        ).withLog(ActivityCategory.CLIPBOARD, "Texto recibido del ordenador")
+                    }
                 }
             }
             is DesktopLinkEvent.Resolution -> {
-                val updated = notificationRepository.resolveNotificationFromDesktop(event.action)
+                val updated = notificationSource().resolveNotificationFromDesktop(event.action)
                 _uiState.update { state ->
                     state.copy(notifications = updated).withLog(ActivityCategory.NOTIFICATION, "Resolución recibida desde la PC")
                 }
@@ -535,16 +589,19 @@ class AndroidConnectionViewModel(
 
     companion object {
         /**
-         * Construye una instancia por defecto del ViewModel inyectando los repositorios de la capa Model.
+         * Construye una instancia por defecto del ViewModel inyectando los repositorios de la capa Model; sin `context`
+         * (pruebas) se omiten las integraciones con el sistema Android.
          */
-        fun createDefault(): AndroidConnectionViewModel {
+        fun createDefault(context: Context? = null): AndroidConnectionViewModel {
             val rustCore = AndroidNativeCoreLoader.loadOrDummy()
             return AndroidConnectionViewModel(
                 deviceRepository = AndroidDeviceRepository(rustCore),
                 notificationRepository = AndroidNotificationBridgeRepository(),
                 mediaStreamRepository = AndroidMediaStreamRepository(rustCore),
                 pairingRepository = AndroidPairingRepository(rustCore),
-                socketLinkRepository = AndroidSocketLinkRepository(rustCore)
+                socketLinkRepository = AndroidSocketLinkRepository(rustCore),
+                systemNotificationRepository = context?.let { AndroidSystemNotificationRepository(it) },
+                systemClipboardRepository = context?.let { AndroidSystemClipboardRepository(it) }
             )
         }
 
@@ -552,7 +609,7 @@ class AndroidConnectionViewModel(
          * Fábrica compatible con `viewModel()` para que el ViewModel sobreviva a cambios de configuración.
          */
         val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer { createDefault() }
+            initializer { createDefault(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]) }
         }
     }
 }

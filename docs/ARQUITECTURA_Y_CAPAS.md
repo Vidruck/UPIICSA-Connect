@@ -133,13 +133,16 @@ Las reglas anteriores se verifican automáticamente con `ArchitectureRulesTest` 
 1. **Model (`model/`):**
    - `AndroidDeviceRepository`: ciclo de vida de conexión (USB AOAv2/ADB prioridad 1, Wi-Fi/Bluetooth prioridad 2), serialización de saludo y portapapeles con el core, y flujos de telemetría y portapapeles entrante.
    - `AndroidPairingRepository`: deriva el PIN de emparejamiento con `RustCoreBridgeContract.derivePairingPin`.
-   - `AndroidNotificationBridgeRepository`: notificaciones activas, resolución recibida desde la PC y flujo de notificaciones nuevas.
+   - `NotificationBridgeSource`: contrato común de notificaciones (activas, resolución desde la PC y flujo de nuevas). Lo implementan `AndroidNotificationBridgeRepository` (simulado, enlace real apagado) y `AndroidSystemNotificationRepository` (real).
+   - `notifications/UpiicsaNotificationListenerService` + `NotificationListenerHub`: Android crea el servicio al conceder el acceso a notificaciones; el *hub* compartido del proceso lo une con el repositorio. `NotificationMapper` (puro, probado en la JVM) decide qué notificaciones se espejan, y el servicio ejecuta las resoluciones con `RemoteInput`, la acción semántica de lectura o `cancelNotification`.
+   - `AndroidSystemClipboardRepository`: `ClipboardManager` real (escritura del texto de la PC y escucha de copias mientras la app está en primer plano).
    - `AndroidMediaStreamRepository`: Music Mode (cada bloque PCM pasa por el DSP del core), micrófono, cámara y receptor de monitor secundario.
    - `AndroidSocketLinkRepository`: enlace real con el ordenador (`127.0.0.1:47800` vía `adb reverse`) sobre `FrameSocketChannel`; devuelve los latidos como eco, traduce mensajes a `DesktopLinkEvent` y espeja notificaciones y portapapeles.
    - `nativecore/JniRustCoreBridge`: implementación de `RustCoreBridgeContract` sobre `libupiicsa_core_rs.so` (métodos `external` enlazados con `core-rust/src/jni_bridge.rs`, que delega en las mismas funciones de `ffi_bridge.rs`). `AndroidNativeCoreLoader.loadOrDummy()` la carga con `System.loadLibrary` y recurre a `DummyRustCoreBridge` si el APK no incluye el binario (compilaciones debug sin NDK). La fábrica del ViewModel inyecta el resultado en los repositorios, por lo que ViewModel y vistas siguen dependiendo solo del contrato.
 2. **ViewModel (`viewmodel/AndroidConnectionViewModel.kt`):**
    - Expone un único `StateFlow<AndroidConnectionUiState>` (incluye pestaña activa, PIN, telemetría, niveles y bitácora).
-   - Administra los `Job` de flujos de sesión y multimedia; se obtiene con `viewModel(factory = AndroidConnectionViewModel.Factory)` para sobrevivir a cambios de configuración.
+   - Administra los `Job` de flujos de sesión y multimedia; se obtiene con `viewModels { AndroidConnectionViewModel.Factory }` (la fábrica recibe la `Application` para los repositorios del sistema) y sobrevive a cambios de configuración.
+   - Con el enlace real usa las notificaciones y el portapapeles del sistema; `MainActivity.onResume` llama a `refreshSystemAccess()` para reflejar el acceso concedido en los ajustes.
 3. **View (`ui/` y `MainActivity`):**
    - `AndroidConnectionPanelScreen` (encabezado, `Scaffold` y barra de pestañas) y `AndroidTabScreens` (Enlace, Avisos, Portapapeles, Multimedia, Pantalla) construidas con los componentes compartidos; no contienen lógica de negocio.
 
