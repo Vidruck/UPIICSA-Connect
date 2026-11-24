@@ -86,7 +86,8 @@ fun AndroidConnectionPanelScreen(viewModel: AndroidConnectionViewModel) {
                         onTransportSelect = viewModel::setPreferredTransport,
                         onConnect = viewModel::connectToDesktop,
                         onDisconnect = viewModel::disconnectDesktop,
-                        onRescan = viewModel::cargarEstadoInicial
+                        onRescan = viewModel::cargarEstadoInicial,
+                        onRealLinkToggle = viewModel::setRealLinkEnabled
                     )
                     AndroidTab.AVISOS -> AvisosTab(
                         uiState = uiState,
